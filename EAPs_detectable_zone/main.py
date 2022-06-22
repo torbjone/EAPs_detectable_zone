@@ -18,8 +18,8 @@ sigma = 0.3  # S/m
 
 cell_rot_dict = {515175253: [-np.pi/2 * 0.9, np.pi/10, 0],
                  488462783: [-np.pi/3, -np.pi/4, np.pi * 0.8]}
-
 np.random.seed(1234)
+
 
 def save_neural_spike_data(cell, data_folder, sim_name, elec_params):
 
@@ -40,7 +40,6 @@ def save_neural_spike_data(cell, data_folder, sim_name, elec_params):
 def load_neural_data(data_folder, sim_name):
 
     cell_dict = {}
-
     cell_dict["tvec"] = np.load(join(data_folder, 'tvec_{}.npy'.format(sim_name)))
     cell_dict["vmem"] = np.load(join(data_folder, 'vmem_{}.npy'.format(sim_name)))
     cell_dict["imem"] = np.load(join(data_folder, 'imem_{}.npy'.format(sim_name)))
@@ -65,9 +64,9 @@ def return_allen_cell_model(model_folder, dt, tstop):
 
     neuron.load_mechanisms(mod_folder)
 
-    model_file = join(model_folder,  "fit_parameters.json")
-    manifest_file = join(model_folder,  "manifest.json")
-    metadata_file = join(model_folder,  "model_metadata.json")
+    model_file = join(model_folder, "fit_parameters.json")
+    manifest_file = join(model_folder, "manifest.json")
+    metadata_file = join(model_folder, "model_metadata.json")
     morph_file = join(model_folder, "reconstruction.swc")
 
     params = json.load(open(model_file, 'r'))
@@ -247,7 +246,7 @@ def find_good_stim_amplitude_allen(cell_name, model_folder, dt, tstop):
 def spatiotemporal_shape(ax, cell):
 
     # x0, x1, dx = -15, 15, 6
-    x0, x1, dx = 0, 3, 6
+    #x0, x1, dx = 0, 3, 6
     z0, z1, dz = -33, 76, 6
 
     # x_grid, z_grid = np.meshgrid(np.arange(x0, x1 + dx, dx),
@@ -279,7 +278,6 @@ def spatiotemporal_shape(ax, cell):
                                                         grid_elec_params["z"][0],
                                                         grid_elec_params["z"][-1]])
 
-
     cax = ax.get_figure().add_axes([ax.axes.get_position().x1 + 0.05,
                                     0.7,
                                     0.007,
@@ -292,6 +290,7 @@ def spatiotemporal_shape(ax, cell):
 
     ax.plot([4, 4], [-30, -20], c='k', lw=3)
     ax.text(4.1, -25, "10 µm", va="center", ha="left")
+
 
 def detectable_volume(ax, cell, x_grid, y_grid, z_grid,
                       projection=('x', 'z')):
@@ -483,8 +482,9 @@ def run_chosen_allen_models():
                                xticks=[], yticks=[],)
 
             ax6 = fig.add_axes([0.62, 0.01, 0.37, 0.9], frameon=False,
-                               xticks=[], yticks=[], xlim=[x0_ld - dz_ld / 4, x1_ld + dz_ld ],
-                               ylim=[z0_ld - dz_ld, z1_ld + dz_ld ],
+                               xticks=[], yticks=[],
+                               xlim=[x0_ld - dz_ld / 4, x1_ld + dz_ld],
+                               ylim=[z0_ld - dz_ld, z1_ld + dz_ld],
                                title="xz-plane",
                                aspect=1,)
 
