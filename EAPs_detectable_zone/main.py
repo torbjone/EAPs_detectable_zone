@@ -425,12 +425,15 @@ def run_chosen_allen_models():
 
             model_folder = join(cell_models_folder, "neuronal_model_%s" % model_id)
             cell = return_allen_cell_model(model_folder, dt, tstop)
-            model_type = cell.manifest["biophys"][0]["model_type"]
-            cell_type = cell.metadata["specimen"]["specimen_tags"][1]["name"]
+            eap_predictors = get_cell_spike_amp_tranfer_function(cell)
+
+            model_type = cell.manifest["biophys"][0]["model_type"].split("-")[1]
+            cell_type = cell.metadata["specimen"]["specimen_tags"][1]["name"].split("-")[1]
             cell_region = cell.metadata["specimen"]["structure"]["name"]
+            cell_layer = cell.metadata["specimen"]["structure"]["name"].split(",")[1]
 
             #if "- spiny" in cell_type and "layer 1" not in cell_region:
-            print("Running: ", model_id, model_type, cell_type, cell_region)
+            print("Running: ", model_id, model_type, cell_type, cell_layer)
             # model_folder = join(cell_models_folder,  "neuronal_model_{}".format(model_id))
             cell.__del__()
             cell = find_good_stim_amplitude_allen(model_id, model_folder, dt, tstop)
@@ -510,15 +513,25 @@ def run_chosen_allen_models():
 
             elec_params = {
                 'sigma': sigma,  # Saline bath conductivity
-                'x': np.array([10]),  # electrode requires 1d vector of positions
+                'x': np.array([cell.d[0]/2]),  # electrode requires 1d vector of positions
                 'y': np.array([0]),
                 'z': np.array([0]),
-                'r': 5.,
-                'N': [1, 0, 0],
                 "method": "root_as_point",
             }
             electrode = LFPy.RecExtElectrode(cell, **elec_params)
             eaps_hd = electrode.get_transformation_matrix() @ cell.imem * 1e3
+
+            eap_predictors["id"] = model_id
+            eap_predictors["model_type"] = model_type
+            eap_predictors["cell_type"] = cell_type
+            eap_predictors["cell_layer"] = cell_layer
+            eap_predictors["eap_p2p"] = np.max(eaps_hd) - np.min(eaps_hd)
+            eap_predictors["eap"] = eaps_hd
+            eap_predictors["imem_p2p"] = np.max(cell.imem[0]) - np.min(cell.imem[0])
+            eap_predictors["vmem_p2p"] = np.max(cell.vmem[0]) - np.min(cell.vmem[0])
+
+            os.makedirs(data_folder, exist_ok=True)
+            np.save(join(data_folder, "eap_predictors_{:s}.npy".format(model_id)), eap_predictors)
 
             ax3.text(1, np.min(eaps_hd[0])/2, r"$V_{\rm e}$")
             ax3.set_yticks([0])
@@ -626,7 +639,281 @@ def run_chosen_allen_models():
             os.waitpid(pid, 0)
 
 
+        # plot_idxs = [cell.somaidx[0],
+        #              cell.get_closest_idx(z=-1e7),
+        #              cell.get_closest_idx(z=1e7),]
+        # idx_clr = {idx: ['b', 'cyan', 'orange', 'green', 'purple'][num]
+        #            for num, idx in enumerate(plot_idxs)}
+
+
+def plot_cell_secs(cell, ax_m_side, ax_m_top):
+
+    possible_names = ["Myelin", "axon", "Unmyelin", "Node", "node", "my",
+                      "hilloc",
+                      "hill", "apic", "dend", "soma"]
+
+    sec_clrs = {"Myelin": 'olive',
+            "dend": '0.6',
+            "soma": '0.0',
+            'apic': '0.8',
+            "axon": 'lightgreen',
+            "node": 'r',
+            "my": '0.5',
+            "Unmyelin": 'salmon',
+            "Node": 'r',
+            "hilloc": 'lightblue',
+            "hill": 'pink',}
+
+    legend_dict = {"soma": "soma",
+                   "my": "myelin",
+                   "node": "node of Ranvier",
+                   "axon": "AIS",
+                   "dend": "dend",
+                   "apic": "apic"}
+
+    used_clrs = []
+    cell_clr_list = []
+    for idx in range(len(cell.x)):
+        sec_name = cell.get_idx_name(idx)[1]
+
+        if "node" in sec_name:
+            zorder = 5000
+        else:
+            zorder = -50
+
+        for ax_name in possible_names:
+            if ax_name in sec_name:
+
+                c = sec_clrs[ax_name]
+                if not ax_name in used_clrs:
+                    used_clrs.append(ax_name)
+        cell_clr_list.append(c)
+        ax_m_top.plot(cell.x[idx], cell.y[idx], '-',
+              c=c, clip_on=False, lw=np.sqrt(cell.d[idx]) * 2, zorder=zorder)
+        ax_m_side.plot(cell.x[idx], cell.z[idx], '-',
+              c=c, clip_on=True, lw=np.sqrt(cell.d[idx]) * 2,
+                       zorder=zorder)
+        if "node" in sec_name:
+            ax_m_top.plot(cell.x[idx].mean(), cell.y[idx].mean(), 'o', ms=3,
+                          c=c)
+            ax_m_side.plot(cell.x[idx].mean(), cell.z[idx].mean(), 'o', ms=3,
+                          c=c)
+
+    lines = []
+    line_names = []
+    for name in used_clrs:
+        l, = ax_m_side.plot([0], [0], lw=2, c=sec_clrs[name])
+        #if not "soma" in name:
+        lines.append(l)
+        line_names.append(legend_dict[name])
+    ax_m_side.legend(lines, line_names, frameon=False, fontsize=10,
+                    loc=(-0.45, -0.15), ncol=1)
+    return cell_clr_list
+
+
+def get_cell_spike_amp_tranfer_function(cell):
+    somasec = None
+    for sec in neuron.h.allsec():
+        if "soma" in sec.name():
+            somasec = sec
+            break
+    #print(dir(somasec))
+    soma_children = somasec.children()
+    child_diams = np.zeros(len(soma_children))
+    for c_idx, childsec in enumerate(soma_children):
+        child_diams[c_idx] = childsec.diam
+    child_diams_23 = np.sum(child_diams**(3 / 2))
+    T_max = child_diams_23 / (somasec.diam / 2) * np.sqrt(
+        somasec.cm / somasec.Ra)
+    eap_predictors = {"soma_diam": somasec.diam,
+                      "child_diams_23": child_diams_23,
+                      "soma_cm": somasec.cm,
+                      "soma_Ra": somasec.Ra,
+                      "T_max": T_max,
+                      }
+    return eap_predictors
+
+
+
+def inspect_cells():
+
+    model_ids = [f.split('_')[-1] for f in os.listdir(cell_models_folder)
+                  if f.startswith("neuronal_model_") and
+                  os.path.isdir(join(cell_models_folder, f))][::-1]
+
+    print(model_ids)
+
+    dt = 2**-7
+    tstop = 120
+    data_folder = join("..", "model_scan", "sim_data")
+    fig_folder = join("..", "model_scan")
+
+    for model_id in model_ids:
+        #if not model_id == '483108201':
+        # if not model_id == '486508647':
+        #  continue
+        #print("Running ", model_id)
+
+        pid = os.fork()
+        if pid == 0:
+
+            model_folder = join(cell_models_folder, "neuronal_model_%s" % model_id)
+            cell = return_allen_cell_model(model_folder, dt, tstop)
+            model_type = cell.manifest["biophys"][0]["model_type"]
+            cell_type = cell.metadata["specimen"]["specimen_tags"][1]["name"]
+            cell_region = cell.metadata["specimen"]["structure"]["name"]
+
+            print("Running: ", model_id, model_type, cell_type, cell_region)
+            plt.close("all")
+            fig = plt.figure(figsize=[16, 9])
+            fig.suptitle("%s; %s; %s; %s" % (model_id, model_type, cell_type, cell_region))
+            ax_m_side = fig.add_axes([0.1, 0.08, 0.12, 0.63], aspect=1)
+            ax_m_top = fig.add_axes([0.1, 0.77, 0.12, 0.20], aspect=1)
+            ax_diam = fig.add_axes([0.27, 0.1, 0.12, 0.80], xlim=[0, 3],
+                                   xlabel="diameter (µm)", ylabel="z (µm)",
+                                   title="diamter (soma={:1.1f} µm)".format(cell.d[0]))
+            ax_ions = fig.add_axes([0.44, 0.1, 0.12, 0.80],
+                                   xlabel="gbar (S/cm²)", ylabel="z (µm)",
+                                   title="ion-channel conductance")
+            ax_cm = fig.add_axes([0.61, 0.1, 0.12, 0.80],
+                                   xlabel="Cm (µF/cm²)", ylabel="z (µm)",
+                                   title="membrane capacitance")
+
+            ax_ra = fig.add_axes([0.78, 0.1, 0.12, 0.80],
+                                   xlabel="Ra (Ohm m)", ylabel="z (µm)",
+                                   title="intracellular resistance")
+
+            cell_clr_list = plot_cell_secs(cell, ax_m_side, ax_m_top)
+            #print(np.max(cell.d) + 1)
+            #ax_m.plot(cell.x.T, cell.z.T, )
+            for idx in range(cell.totnsegs):
+                ax_diam.plot(cell.d[idx], cell.z[idx].mean(), 'o', c=cell_clr_list[idx])
+
+            #idx = 0
+
+            ion_names = [#"Ca_HVA", "Ca_LVA", "K_T", "Kd", "SK", "Kv2like", "Kv3_1",
+                         "Nap", "NaTs", "NaTa", "NaV"]
+
+            ion_gbars = {}
+            lines = []
+            line_names = []
+
+            i = 0
+            ion_gbars["g_pas"] = np.zeros(cell.totnsegs)
+            ion_gbars["c_m"] = np.zeros(cell.totnsegs)
+            ion_gbars["ra"] = np.zeros(cell.totnsegs)
+            for sec in neuron.h.allsec():
+                for seg in sec:
+                    ion_gbars["g_pas"][i] = seg.pas.g
+                    ion_gbars["ra"][i] = sec.Ra
+                    ion_gbars["c_m"][i] = seg.cm
+                    i += 1
+
+            ax_cm.plot(ion_gbars["c_m"], cell.z.mean(axis=-1), 'o', ms=5)
+            ax_ra.plot(ion_gbars["ra"], cell.z.mean(axis=-1), 'o', ms=5)
+
+            li, = ax_ions.plot(ion_gbars["g_pas"], cell.z.mean(axis=-1), 'o', ms=5)
+            lines.append(li)
+            line_names.append("g_pas")
+
+            for ion_name in ion_names:
+                ion_gbars[ion_name] = np.zeros(cell.totnsegs)
+                i = 0
+                for sec in neuron.h.allsec():
+                    for seg in sec:
+                        if hasattr(seg, ion_name):
+                            ion_gbars[ion_name][i] = eval("seg.%s.gbar" % ion_name)
+
+                        i += 1
+                    # for k in dir(seg):
+                    #     print(k)
+                    #     if hasattr(seg, "%s."
+                    #     if k.startswith("gbar"):
+                    #         print(k)
+
+#                print(sec.name())
+                li, = ax_ions.plot(ion_gbars[ion_name], cell.z.mean(axis=-1), 'o', ms=4)
+                lines.append(li)
+                line_names.append(ion_name)
+            ax_ions.legend(lines, line_names)
+
+            T_max = get_cell_spike_amp_tranfer_function(cell)
+
+
+            fig.savefig(join(fig_folder, "inspection_%s.png" % model_id), dpi=150)
+            cell.__del__()
+            os._exit(0)
+        else:
+            os.waitpid(pid, 0)
+
+        #import sys; sys.exit()
+
+
+def analyze_eap_amplitudes():
+    data_folder = join("..", "model_scan", "sim_data")
+    filelist = [f for f in os.listdir(data_folder) if f.startswith("eap_predictor")]
+
+    num_cells = len(filelist)
+    eap_p2p = np.zeros(num_cells)
+    imem_p2p = np.zeros(num_cells)
+    vmem_p2p = np.zeros(num_cells)
+    child_diams = np.zeros(num_cells)
+    soma_diams = np.zeros(num_cells)
+    transfunc = np.zeros(num_cells)
+    soma_cm = np.zeros(num_cells)
+    soma_Ra = np.zeros(num_cells)
+    cell_clr = lambda idx: plt.cm.rainbow(idx / (num_cells - 1))
+
+    for idx, f in enumerate(filelist):
+        pred_dict = np.load(join(data_folder, f), allow_pickle=True)[()]
+        eap_p2p[idx] = pred_dict['eap_p2p']
+        transfunc[idx] = pred_dict['T_max']
+        imem_p2p[idx] = pred_dict['imem_p2p']
+        vmem_p2p[idx] = pred_dict['vmem_p2p']
+        child_diams[idx] = pred_dict['child_diams_23']
+        soma_diams[idx] = pred_dict['soma_diam']
+        soma_cm[idx] = pred_dict['soma_cm']
+        soma_Ra[idx] = pred_dict['soma_Ra']
+
+    ordered_idxs = np.argsort(eap_p2p)
+    print(filelist[ordered_idxs[0]], filelist[ordered_idxs[-1]])
+    eap_p2p = eap_p2p[ordered_idxs]
+    transfunc = transfunc[ordered_idxs]
+    imem_p2p = imem_p2p[ordered_idxs]
+    vmem_p2p = vmem_p2p[ordered_idxs]
+    child_diams = child_diams[ordered_idxs]
+    soma_diams = soma_diams[ordered_idxs]
+    soma_cm = soma_cm[ordered_idxs]
+
+    fig = plt.figure(figsize=[22, 15])
+    fig.subplots_adjust(bottom=0.05, top=0.98)
+    num_rows = 8
+    num_cols = 1
+    ax1 = fig.add_subplot(num_rows, num_cols, 1, ylabel="EAP p2p\n(µV)", xticks=[])
+    ax2 = fig.add_subplot(num_rows, num_cols, 2, ylabel="soma $I_m$\n(nA)", xticks=[])
+    ax3 = fig.add_subplot(num_rows, num_cols, 3, ylabel="soma $V_m$\n(mV)", xticks=[])
+    ax4 = fig.add_subplot(num_rows, num_cols, 4, ylabel="T_max", xticks=[])
+    ax5 = fig.add_subplot(num_rows, num_cols, 5, ylabel="(d_dend)$^{(3/2)}$", xticks=[])
+    ax6 = fig.add_subplot(num_rows, num_cols, 6, ylabel="soma diam\n(µm)", xticks=[])
+    ax7 = fig.add_subplot(num_rows, num_cols, 7, ylabel="soma cm\n(µF/cm²)", xticks=[])
+    ax8 = fig.add_subplot(num_rows, num_cols, 8, ylabel="soma Ra\n(Ohm cm)", xticks=[])
+
+    ax8.axhline(150, lw=0.5, ls='--')
+
+    for idx in range(num_cells):
+        ax1.plot(idx, eap_p2p[idx], 'o', c=cell_clr(idx))
+        ax2.plot(idx, imem_p2p[idx], 'o', c=cell_clr(idx))
+        ax3.plot(idx, vmem_p2p[idx], 'o', c=cell_clr(idx))
+        ax4.plot(idx, transfunc[idx], 'o', c=cell_clr(idx))
+        ax5.plot(idx, child_diams[idx], 'o', c=cell_clr(idx))
+        ax6.plot(idx, soma_diams[idx], 'o', c=cell_clr(idx))
+        ax7.plot(idx, soma_cm[idx], 'o', c=cell_clr(idx))
+        ax8.plot(idx, soma_Ra[idx], 'o', c=cell_clr(idx))
+
+    fig.savefig("EAP_amp_summary.png", dpi=100)
+
 if __name__ == '__main__':
 
-    run_chosen_allen_models()
-
+    # run_chosen_allen_models()
+    # inspect_cells()
+    analyze_eap_amplitudes()
