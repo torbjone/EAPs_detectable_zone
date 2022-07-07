@@ -1,5 +1,8 @@
 import os
+import sys
 from os.path import join
+from glob import glob
+import posixpath
 import json
 import numpy as np
 import neuron
@@ -19,6 +22,245 @@ sigma = 0.3  # S/m
 cell_rot_dict = {515175253: [-np.pi/2 * 0.9, np.pi/10, 0],
                  488462783: [-np.pi/3, -np.pi/4, np.pi * 0.8]}
 np.random.seed(1234)
+
+imem_eap_folder = join("..", "imem_EAPs")
+os.makedirs(imem_eap_folder, exist_ok=True)
+hay_folder = join(cell_models_folder, "L5bPCmodelsEH")
+bbp_folder = join(cell_models_folder, "bbp_models")
+bbp_mod_folder = join(cell_models_folder, "bbp_mod")
+os.makedirs(bbp_folder, exist_ok=True)
+
+
+def download_BBP_model(cell_name="L5_TTPC2_cADpyr232_1"):
+
+    print("Downloading BBP model: ", cell_name)
+    url = "https://bbp.epfl.ch/nmc-portal/assets/documents/static/downloads-zip/{}.zip".format(cell_name)
+
+    if sys.version < '3':
+        from urllib2 import urlopen
+    else:
+        from urllib.request import urlopen
+    import ssl
+    import zipfile
+    #get the model files:
+    u = urlopen(url, context=ssl._create_unverified_context())
+
+    localFile = open(join(bbp_folder, '{}.zip'.format(cell_name)), 'wb')
+    localFile.write(u.read())
+    localFile.close()
+    #unzip:
+    myzip = zipfile.ZipFile(join(bbp_folder, '{}.zip'.format(cell_name)), 'r')
+    myzip.extractall(bbp_folder)
+    myzip.close()
+    os.remove(join(bbp_folder, '{}.zip'.format(cell_name)))
+    #compile mod files every time, because of incompatibility with Mainen96 files:
+    # mod_pth = join(hay_folder, "mod/")
+    #
+    # if "win32" in sys.platform:
+    #     warn("no autompile of NMODL (.mod) files on Windows.\n"
+    #          + "Run mknrndll from NEURON bash in the folder "
+    #            "L5bPCmodelsEH/mod and rerun example script")
+    #     if not mod_pth in neuron.nrn_dll_loaded:
+    #         neuron.h.nrn_load_dll(join(mod_pth, "nrnmech.dll"))
+    #     neuron.nrn_dll_loaded.append(mod_pth)
+    # else:
+    #     os.system('''
+    #               cd {}
+    #               nrnivmodl
+    #               '''.format(mod_pth))
+    #     neuron.load_mechanisms(mod_pth)
+
+    # attempt to set up a folder with all unique mechanism mod files, compile, and
+    # load them all
+    compile_bbp_mechanisms(cell_name)
+
+
+def compile_bbp_mechanisms(cell_name):
+    from warnings import warn
+
+    if not os.path.isdir(bbp_mod_folder):
+        os.mkdir(bbp_mod_folder)
+    cell_folder = join(bbp_folder, cell_name)
+    for nmodl in glob(join(cell_folder, 'mechanisms', '*.mod')):
+        while not os.path.isfile(join(bbp_mod_folder, os.path.split(nmodl)[-1])):
+            if "win32" in sys.platform:
+                os.system("copy {} {}".format(nmodl, bbp_mod_folder))
+            else:
+                os.system('cp {} {}'.format(nmodl,
+                                            join(bbp_mod_folder, '.')))
+    CWD = os.getcwd()
+    os.chdir(bbp_mod_folder)
+    if "win32" in sys.platform:
+        warn("no autompile of NMODL (.mod) files on Windows. " +
+             "Run mknrndll from NEURON bash in the folder %s" % bbp_mod_folder +
+             "and rerun example script")
+    else:
+        os.system('nrnivmodl')
+    os.chdir(CWD)
+
+
+def posixpth(pth):
+    """
+    Replace Windows path separators with posix style separators
+    """
+    return pth.replace(os.sep, posixpath.sep)
+
+
+def get_templatename(f):
+    '''
+    Assess from hoc file the templatename being specified within
+
+    Arguments
+    ---------
+    f : file, mode 'r'
+
+    Returns
+    -------
+    templatename : str
+
+    '''
+    for line in f.readlines():
+        if 'begintemplate' in line.split():
+            templatename = line.split()[-1]
+            continue
+    return templatename
+
+
+def return_BBP_neuron(cell_name, tstop, dt):
+
+    # load some required neuron-interface files
+    neuron.h.load_file("stdrun.hoc")
+    neuron.h.load_file("import3d.hoc")
+
+    CWD = os.getcwd()
+    cell_folder = join(join(bbp_folder, cell_name))
+    if not os.path.isdir(cell_folder):
+        download_BBP_model(cell_name)
+
+    neuron.load_mechanisms(bbp_mod_folder)
+    os.chdir(cell_folder)
+    add_synapses = False
+    # get the template name
+    f = open("template.hoc", 'r')
+    templatename = get_templatename(f)
+    f.close()
+
+    # get biophys template name
+    f = open("biophysics.hoc", 'r')
+    biophysics = get_templatename(f)
+    f.close()
+
+    # get morphology template name
+    f = open("morphology.hoc", 'r')
+    morphology = get_templatename(f)
+    f.close()
+
+    # get synapses template name
+    f = open(posixpth(os.path.join("synapses", "synapses.hoc")), 'r')
+    synapses = get_templatename(f)
+    f.close()
+
+    neuron.h.load_file('constants.hoc')
+
+    if not hasattr(neuron.h, morphology):
+        """Create the cell model"""
+        # Load morphology
+        neuron.h.load_file(1, "morphology.hoc")
+    if not hasattr(neuron.h, biophysics):
+        # Load biophysics
+        neuron.h.load_file(1, "biophysics.hoc")
+    if not hasattr(neuron.h, synapses):
+        # load synapses
+        neuron.h.load_file(1, posixpth(os.path.join('synapses', 'synapses.hoc')
+                                       ))
+    if not hasattr(neuron.h, templatename):
+        # Load main cell template
+        neuron.h.load_file(1, "template.hoc")
+
+    templatefile = posixpth(os.path.join(cell_folder, 'template.hoc'))
+
+    morphologyfile = glob(os.path.join('morphology', '*'))[0]
+
+
+    # Instantiate the cell(s) using LFPy
+    cell = LFPy.TemplateCell(morphology=morphologyfile,
+                             templatefile=templatefile,
+                             templatename=templatename,
+                             templateargs=1 if add_synapses else 0,
+                             tstop=tstop,
+                             dt=dt,
+                             nsegs_method=None)
+    os.chdir(CWD)
+    # set view as in most other examples
+    cell.set_rotation(x=np.pi / 2)
+    return cell
+
+
+def download_hay_model():
+
+    print("Downloading Hay model")
+    if sys.version < '3':
+        from urllib2 import urlopen
+    else:
+        from urllib.request import urlopen
+    import ssl
+    from warnings import warn
+    import zipfile
+    #get the model files:
+    u = urlopen('http://senselab.med.yale.edu/ModelDB/eavBinDown.asp?o=139653&a=23&mime=application/zip',
+                context=ssl._create_unverified_context())
+    localFile = open(join(cell_models_folder, 'L5bPCmodelsEH.zip'), 'wb')
+    localFile.write(u.read())
+    localFile.close()
+    #unzip:
+    myzip = zipfile.ZipFile(join(cell_models_folder, 'L5bPCmodelsEH.zip'), 'r')
+    myzip.extractall(cell_models_folder)
+    myzip.close()
+
+    #compile mod files every time, because of incompatibility with Mainen96 files:
+    mod_pth = join(hay_folder, "mod/")
+
+    if "win32" in sys.platform:
+        warn("no autompile of NMODL (.mod) files on Windows.\n"
+             + "Run mknrndll from NEURON bash in the folder "
+               "L5bPCmodelsEH/mod and rerun example script")
+        if not mod_pth in neuron.nrn_dll_loaded:
+            neuron.h.nrn_load_dll(join(mod_pth, "nrnmech.dll"))
+        neuron.nrn_dll_loaded.append(mod_pth)
+    else:
+        os.system('''
+                  cd {}
+                  nrnivmodl
+                  '''.format(mod_pth))
+        neuron.load_mechanisms(mod_pth)
+
+
+def return_hay_cell(tstop, dt):
+    if not os.path.isfile(join(hay_folder, 'morphologies', 'cell1.asc')):
+        download_hay_model()
+
+    neuron.load_mechanisms(join(hay_folder, 'mod'))
+    cell_params = {
+        'morphology': join(hay_folder, "morphologies", "cell1.asc"),
+        'templatefile': [join(hay_folder, 'models', 'L5PCbiophys3.hoc'),
+                         join(hay_folder, 'models', 'L5PCtemplate.hoc')],
+        'templatename': 'L5PCtemplate',
+        'templateargs': join(hay_folder, 'morphologies', 'cell1.asc'),
+        'passive': False,
+        'nsegs_method': None,
+        'dt': dt,
+        'tstart': 0,
+        'tstop': tstop,
+        'v_init': -75,
+        'celsius': 34,
+        'pt3d': True,
+    }
+
+    #Initialize cell instance, using the LFPy.Cell class
+    cell = LFPy.TemplateCell(**cell_params)
+    cell.set_rotation(x=4.729, y=-3.166)
+    return cell
+
 
 
 def save_neural_spike_data(cell, data_folder, sim_name, elec_params):
@@ -219,6 +461,19 @@ def extract_spike(cell):
     return used_idx
 
 
+def return_spiketime_idx(cell):
+    spike_window = [-1, 4]
+    spike_time_idxs = return_spike_time_idxs(cell.somav)
+
+    if cell.tvec[spike_time_idxs[-1]] + spike_window[1] <= cell.tvec[-1]:
+        used_idx = spike_time_idxs[-1]
+    elif len(spike_time_idxs) > 2:
+        used_idx = spike_time_idxs[-2]
+    else:
+        used_idx = spike_time_idxs[-1]
+    return used_idx
+
+
 def find_good_stim_amplitude_allen(cell_name, model_folder, dt, tstop):
     amp = -0.2#-0.05
     num_spikes = 0
@@ -239,6 +494,31 @@ def find_good_stim_amplitude_allen(cell_name, model_folder, dt, tstop):
         if not min_spikes <= num_spikes <= max_spikes:
             synapse = None
             cell.__del__()
+
+    return cell
+
+
+def find_good_stim_amplitude_BBP(cell_name, dt, tstop):
+    amp = -0.05#-0.05
+    num_spikes = 0
+    min_spikes = 2
+    max_spikes = 10
+
+    while not min_spikes <= num_spikes <= max_spikes:
+        print("Testing amp {:1.3f} on cell {}".format(amp, cell_name))
+        if num_spikes < min_spikes:
+            amp *= 1.5
+        elif num_spikes > max_spikes:
+            amp *= 0.75
+        cell = return_BBP_neuron(cell_name, dt, tstop)
+        synapse, cell = insert_current_stimuli(cell, amp)
+        cell.simulate(rec_vmem=True, rec_imem=True)
+
+        num_spikes = len(return_spike_time_idxs(cell.somav))
+        if not min_spikes <= num_spikes <= max_spikes:
+            cell.__del__()
+            cell = None
+            synapse = None
 
     return cell
 
@@ -734,7 +1014,6 @@ def get_cell_spike_amp_tranfer_function(cell):
     return eap_predictors
 
 
-
 def inspect_cells():
 
     model_ids = [f.split('_')[-1] for f in os.listdir(cell_models_folder)
@@ -912,8 +1191,423 @@ def analyze_eap_amplitudes():
 
     fig.savefig("EAP_amp_summary.png", dpi=100)
 
+
+def recreate_allen_data():
+
+    import analyse_exp_data as axd
+
+    model_ids = [f.split('_')[-1] for f in os.listdir(cell_models_folder)
+                  if f.startswith("neuronal_model_") and
+                  os.path.isdir(join(cell_models_folder, f))][::-1]
+
+    print(model_ids)
+
+    dt = 2**-7
+    tstop = 120
+    data_folder = join("..", "model_scan", "sim_data")
+    fig_folder = join("..", "exp_data", "simulated")
+    os.makedirs(fig_folder, exist_ok=True)
+    for model_id in model_ids:
+
+        pid = os.fork()
+        if pid == 0:
+
+            model_folder = join(cell_models_folder, "neuronal_model_%s" % model_id)
+            cell = return_allen_cell_model(model_folder, dt, tstop)
+
+            model_type = cell.manifest["biophys"][0]["model_type"].split("-")[1]
+            cell_type = cell.metadata["specimen"]["specimen_tags"][1]["name"].split("-")[1]
+            cell_region = cell.metadata["specimen"]["structure"]["name"]
+            cell_layer = cell.metadata["specimen"]["structure"]["name"].split(",")[1]
+
+            #if "- spiny" in cell_type and "layer 1" not in cell_region:
+            print("Running: ", model_id, model_type, cell_type, cell_layer)
+            # model_folder = join(cell_models_folder,  "neuronal_model_{}".format(model_id))
+            cell.__del__()
+            cell = find_good_stim_amplitude_allen(model_id, model_folder, dt, tstop)
+
+            data_folder = join("..", "exp_data", "NPUltraWaveforms")
+
+            elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
+            elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
+
+            elec_params = {
+                'sigma': sigma,  # Saline bath conductivity
+                'x': elecs_x,  # electrode requires 1d vector of positions
+                'y': np.zeros(len(elecs_x)) + 10,
+                'z': elecs_z,
+                "method": "root_as_point",
+            }
+            np.random.seed(int(model_id))
+            spike_time_idx = extract_spike(cell)
+            cell.set_pos(x=np.random.uniform(-axd.dx, np.max(axd.x) + axd.dx),
+                         z=np.random.uniform(-axd.dz, np.max(axd.z) + axd.dz))
+            electrode = LFPy.RecExtElectrode(cell, **elec_params)
+            eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
+            fig_name = "sim_allen_mouse_%s" % model_id
+            axd.plot_NPUltraWaveform(eaps.T, cell.tvec, fig_name,
+                                     fig_folder, cell)
+
+            os._exit(0)
+        else:
+            os.waitpid(pid, 0)
+
+
+def recreate_allen_data_hay():
+
+    import analyse_exp_data as axd
+
+    dt = 2**-7
+    tstop = 120
+    filt_dict_high_pass = {'highpass_freq': 300,
+                           'lowpass_freq': None,
+                           'order': 4,
+                           'filter_function': 'filtfilt',
+                           'fs': 1 / (dt / 1000),
+                           'axis': -1
+                           }
+    fig_folder = join("..", "exp_data", "simulated")
+    os.makedirs(fig_folder, exist_ok=True)
+    num_trials = 20
+    cell = return_hay_cell(tstop, dt)
+    synapse, cell = insert_current_stimuli(cell, -0.4)
+    cell.simulate(rec_vmem=True, rec_imem=True)
+    print(np.max(cell.somav))
+    spiketime_idx = return_spiketime_idx(cell)
+    t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
+    for trial_idx in range(num_trials):
+
+        pid = os.fork()
+        if pid == 0:
+
+            data_folder = join("..", "exp_data", "NPUltraWaveforms")
+
+            elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
+            elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
+
+            elec_params = {
+                'sigma': sigma,  # Saline bath conductivity
+                'x': elecs_x,  # electrode requires 1d vector of positions
+                'y': np.zeros(len(elecs_x)),
+                'z': elecs_z,
+                "method": "root_as_point",
+            }
+            np.random.seed(12345 + trial_idx)
+            cell.set_rotation(z=np.random.uniform(0, 2 * np.pi))
+            cell.set_pos(x=np.random.uniform(-axd.dx, np.max(axd.x) + axd.dx),
+                         y=np.random.uniform(-50, -10),
+                         z=np.random.uniform(-axd.dz, np.max(axd.z) + axd.dz))
+
+            electrode = LFPy.RecExtElectrode(cell, **elec_params)
+            eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
+            eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
+
+            fig_name = "sim_hay_%s_filt" % trial_idx
+            t_ = cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
+            eap_ = eaps[:, t_window[0]:t_window[1]].T
+            if np.max(np.abs(eap_)) > 30:
+                axd.plot_NPUltraWaveform(eap_, t_, fig_name,
+                                         fig_folder, cell)
+
+            os._exit(0)
+        else:
+            os.waitpid(pid, 0)
+
+
+def recreate_allen_data_BBP():
+
+    import analyse_exp_data as axd
+
+    dt = 2**-7
+    tstop = 120
+
+    fig_folder = join("..", "exp_data", "simulated")
+    os.makedirs(fig_folder, exist_ok=True)
+    num_trials = 20
+
+    # neurons = ["L5_TTPC2_cADpyr232_2",
+    #            "L5_MC_bAC217_1",
+    #            "L5_NGC_bNAC219_5",
+    #            ]
+    filt_dict_high_pass = {'highpass_freq': 300,
+                           'lowpass_freq': None,
+                           'order': 4,
+                           'filter_function': 'filtfilt',
+                           'fs': 1 / (dt / 1000),
+                           'axis': -1
+                           }
+    cell_names = os.listdir(bbp_folder)
+    for cell_name in cell_names:
+        pid = os.fork()
+        if pid == 0:
+            #cell = find_good_stim_amplitude_BBP(cell_name, dt, tstop)
+            cell = return_BBP_neuron(cell_name, tstop, dt)
+            synapse, cell = insert_current_stimuli(cell, -0.2)
+            cell.simulate(rec_vmem=True, rec_imem=True)
+            #spike_time_idx = extract_spike(cell)
+
+            spiketime_idx = return_spiketime_idx(cell)
+            t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
+            for trial_idx in range(num_trials):
+                if np.max(cell.somav) < -10:
+                    print("%s needs more input!" % cell_name)
+                    break
+                data_folder = join("..", "exp_data", "NPUltraWaveforms")
+
+                elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
+                elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
+
+                elec_params = {
+                    'sigma': sigma,  # Saline bath conductivity
+                    'x': elecs_x,  # electrode requires 1d vector of positions
+                    'y': np.zeros(len(elecs_x)),
+                    'z': elecs_z,
+                    "method": "root_as_point",
+                }
+                np.random.seed(12345 + trial_idx)
+                cell.set_rotation(z=np.random.uniform(0, 2 * np.pi))
+                cell.set_pos(x=np.random.uniform(-axd.dx, np.max(axd.x) + axd.dx),
+                             y=np.random.uniform(-50, -10),
+                             z=np.random.uniform(-axd.dz, np.max(axd.z) + axd.dz))
+
+                electrode = LFPy.RecExtElectrode(cell, **elec_params)
+                eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
+
+                eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
+                t_ = cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
+                eap_ = eaps[:, t_window[0]:t_window[1]]
+                if np.max(np.abs(eap_)) > 30:
+                    fig_name = "sim_BBP_%s_%d_hp_filt" % (cell_name, trial_idx)
+                    axd.plot_NPUltraWaveform(eap_.T, t_, fig_name,
+                                             fig_folder, cell)
+
+            os._exit(0)
+        else:
+            os.waitpid(pid, 0)
+
+
+def insert_synapses(cell, synparams, section, n, netstimParameters):
+    """ Find n compartments to insert synapses onto """
+    idx = cell.get_rand_idx_area_norm(section=section, nidx=n)
+
+    #Insert synapses in an iterative fashion
+    for i in idx:
+        synparams.update({'idx': int(i)})
+        # Create synapse(s) and setting times using the Synapse class in LFPy
+        s = LFPy.Synapse(cell, **synparams)
+        s.set_spike_times_w_netstim(**netstimParameters)
+
+
+def insert_distributed_synaptic_input(cell, weight_scale):
+    # Synaptic parameters taken from Hendrickson et al 2011
+    # Excitatory synapse parameters:
+    syn_params_AMPA = {
+        'e': 0,  # reversal potential
+        'syntype': 'Exp2Syn',  # conductance based exponential synapse
+        'tau1': 1.,  # Time constant, rise
+        'tau2': 3.,  # Time constant, decay
+        'weight': 0.003 * weight_scale,  # Synaptic weight
+        'record_current': False,  # record synaptic currents
+    }
+    # Excitatory synapse parameters
+    syn_params_NMDA = {
+        'e': 0,
+        'syntype': 'Exp2Syn',
+        'tau1': 10.,
+        'tau2': 30.,
+        'weight': 0.005,
+        'record_current': False,
+    }
+    # Inhibitory synapse parameters
+    syn_params_GABA_A = {
+        'e': -80,
+        'syntype': 'Exp2Syn',
+        'tau1': 1.,
+        'tau2': 12.,
+        'weight': 0.005,
+        'record_current': False
+    }
+    # where to insert, how many, and which input statistics
+    syn_AMPA_args = {
+        'section': 'allsec',
+        'n': 100,
+        'netstimParameters': {
+            'number': 1000,
+            'start': 0,
+            'noise': 1,
+            'interval': 20,
+        }
+    }
+    syn_NMDA_args = {
+        'section': ['dend', 'apic'],
+        'n': 15,
+        'netstimParameters': {
+            'number': 1000,
+            'start': 0,
+            'noise': 1,
+            'interval': 90,
+        }
+    }
+    syn_GABA_A_args = {
+        'section': 'dend',
+        'n': 100,
+        'netstimParameters': {
+            'number': 1000,
+            'start': 0,
+            'noise': 1,
+            'interval': 20,
+        }
+    }
+
+    insert_synapses(cell, syn_params_AMPA, **syn_AMPA_args)
+    insert_synapses(cell, syn_params_NMDA, **syn_NMDA_args)
+    insert_synapses(cell, syn_params_GABA_A, **syn_GABA_A_args)
+
+
+def realistic_stimuli_hay():
+
+    cell_name = "hay"
+    dt = 2**-5
+    tstop = 2000
+    cutoff = 50
+
+    cell = return_hay_cell(tstop, dt)
+    insert_distributed_synaptic_input(cell, weight_scale=1)
+    cell.simulate(rec_vmem=True, rec_imem=True)
+    t0 = np.argmin(np.abs(cell.tvec - cutoff))
+    cell.tvec = cell.tvec[t0:] - cell.tvec[t0]
+    cell.imem = cell.imem[:, t0:]
+    cell.vmem = cell.vmem[:, t0:]
+    cell.somav = cell.somav[t0:]
+    plot_spikes(cell, cell_name)
+
+
+def realistic_stimuli_BBP():
+
+    dt = 2**-5
+    tstop = 2000
+    cutoff = 50
+    weight_scale = 0.5
+    cell_names = os.listdir(bbp_folder)
+    for cell_name in cell_names:
+        if os.path.isfile(os.path.join(imem_eap_folder,
+                                       "imem_ufilt_%s.npy" % cell_name)):
+            sim_success = True
+            print("skipping ", cell_name)
+        else:
+            sim_success = False
+        weight_scale_ = weight_scale
+        if "PC" in cell_name:
+            weight_scale_ *= 1.5
+        while not sim_success:
+            pid = os.fork()
+            if pid == 0:
+                cell = return_BBP_neuron(cell_name, tstop, dt)
+                insert_distributed_synaptic_input(cell, weight_scale_)
+                cell.simulate(rec_vmem=True, rec_imem=True)
+
+                t0 = np.argmin(np.abs(cell.tvec - cutoff))
+                cell.tvec = cell.tvec[t0:] - cell.tvec[t0]
+                cell.imem = cell.imem[:, t0:]
+                cell.vmem = cell.vmem[:, t0:]
+                cell.somav = cell.somav[t0:]
+                plot_spikes(cell, cell_name)
+                os._exit(0)
+            else:
+                os.waitpid(pid, 0)
+                # plt.pause(0.1)
+                if os.path.isfile(os.path.join(imem_eap_folder,
+                                               "imem_ufilt_%s.npy" % cell_name)):
+                    sim_success = True
+                else:
+                    weight_scale_ *= 1.5
+
+
+def plot_spikes(cell, cell_name):
+    num_elecs = 1
+    elec_params = {
+        'sigma': sigma,  # Saline bath conductivity
+        'x': np.array([20]),  # electrode requires 1d vector of positions
+        'y': np.zeros(num_elecs),
+        'z': np.zeros(num_elecs),
+        "method": "root_as_point",
+    }
+    filt_dict_high_pass = {'highpass_freq': 300,
+                           'lowpass_freq': None,
+                           'order': 1,
+                           'filter_function': 'filtfilt',
+                           'fs': 1 / (cell.dt / 1000),
+                           'axis': -1
+                           }
+    electrode = LFPy.RecExtElectrode(cell, **elec_params)
+    imem_filt = elephant.signal_processing.butter(cell.imem, **filt_dict_high_pass)
+    v_e_ufilt = electrode.get_transformation_matrix() @ cell.imem * 1e3
+    v_e_filt = elephant.signal_processing.butter(v_e_ufilt, **filt_dict_high_pass)
+
+    spike_time_idxs = return_spike_time_idxs(cell.somav)
+    if len(spike_time_idxs) == 0:
+        print(cell_name, " not spiking!")
+        return None
+    spike_windows = np.array([spike_time_idxs - int(1 / cell.dt),
+                     spike_time_idxs + int(1.7 / cell.dt)]).T
+    eaps_filt = []
+    eaps_ufilt = []
+    imems_filt = []
+    imems_ufilt = []
+    for s_wind in spike_windows:
+        if s_wind[0] >= 0 and s_wind[1] < len(cell.tvec):
+            eaps_filt.append(v_e_filt[:, s_wind[0]:s_wind[1]])
+            eaps_ufilt.append(v_e_ufilt[:, s_wind[0]:s_wind[1]])
+            imems_filt.append(imem_filt[:, s_wind[0]:s_wind[1]])
+            imems_ufilt.append(cell.imem[:, s_wind[0]:s_wind[1]])
+
+    imem_filt_mean = np.mean(imems_filt, axis=0)
+    imem_ufilt_mean = np.mean(imems_ufilt, axis=0)
+    np.save(os.path.join(imem_eap_folder, "imem_ufilt_%s.npy" % cell_name), imem_ufilt_mean)
+    np.save(os.path.join(imem_eap_folder, "imem_filt_%s.npy" % cell_name), imem_filt_mean)
+
+    v_e_prefilt = electrode.get_transformation_matrix() @ imem_filt_mean * 1e3
+    #print(spike_windows)
+    eaps_filt = np.array(eaps_filt)
+    eaps_ufilt = np.array(eaps_ufilt)
+    plt.close("all")
+    fig = plt.figure(figsize=[16, 9])
+    ax_m = fig.add_axes([0.0, 0., 0.15, 0.97], aspect=1,
+                        frameon=False, xticks=[], yticks=[])
+    ax_v = fig.add_axes([0.25, 0.6, 0.2, 0.3])
+    ax_v_e = fig.add_axes([0.25, 0.1, 0.2, 0.3])
+    ax_eap = fig.add_axes([0.5, 0.1, 0.45, 0.8])
+    ax_m.plot(cell.x.T, cell.z.T, c='k')
+    ax_v.plot(cell.tvec, cell.somav, 'k')
+    ax_m.plot(electrode.x, electrode.z, 'D', c='orange')
+
+    for elec in range(num_elecs):
+        ax_v_e.plot(cell.tvec, v_e_ufilt[elec], 'k', lw=2)
+        ax_v_e.plot(cell.tvec, v_e_filt[elec], 'r', lw=1.5)
+
+    t_eap = cell.tvec[:eaps_filt.shape[-1]]
+    for eap_idx in range(len(eaps_filt)):
+        ax_eap.plot(t_eap, eaps_filt[eap_idx, 0] - eaps_filt[eap_idx, 0, 0], c='pink', lw=0.5)
+        ax_eap.plot(t_eap, eaps_ufilt[eap_idx, 0] - eaps_ufilt[eap_idx, 0, 0], c='gray', lw=0.5)
+    mean_eap_filt = np.mean(eaps_filt, axis=0)
+    mean_eap_ufilt = np.mean(eaps_ufilt, axis=0)
+    l1, = ax_eap.plot(t_eap, mean_eap_filt[0] - mean_eap_filt[0, 0], c='r', lw=2)
+    l2, = ax_eap.plot(t_eap, mean_eap_ufilt[0] - mean_eap_ufilt[0, 0], c='k', lw=2)
+    ax_eap.plot(t_eap, v_e_prefilt[0] - v_e_prefilt[0, 0], 'b--', lw=1)
+    ax_eap.legend([l1, l2], ["hp-filtered", "unfiltered"], frameon=False)
+    fig_folder = os.path.join("..", "sim_control_figs")
+    os.makedirs(fig_folder, exist_ok=True)
+    plt.savefig(join(fig_folder, "sim_EAP_%s_one_pole.png" % cell_name))
+
+
 if __name__ == '__main__':
 
     # run_chosen_allen_models()
+    # recreate_allen_data()
+    # recreate_allen_data_hay()
+    # realistic_stimuli_hay()
+    realistic_stimuli_BBP()
+    # recreate_allen_data_BBP()
+
     # inspect_cells()
-    analyze_eap_amplitudes()
+    # analyze_eap_amplitudes()
