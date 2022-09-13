@@ -5,18 +5,19 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection, LineCollection
 from plotting_convention import mark_subplots, simplify_axes
 
-data_folder = join("..", "exp_data", "NPUltraWaveforms")
+exp_data_folder = join("..", "exp_data", "NPUltraWaveforms")
+sim_data_folder = join("..", "exp_data", "simulated")
 
-fig_folder = join(data_folder, "figures")
+fig_folder = join(exp_data_folder, "figures")
 os.makedirs(fig_folder, exist_ok=True)
 
 
-x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
-z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
+x = np.load(join(exp_data_folder, "channels.xcoords.npy"))[:, 0]
+z = np.load(join(exp_data_folder, "channels.ycoords.npy"))[:, 0]
 
-spike_times = np.load(join(data_folder, "spikes.times.npy"))
-spike_clusters = np.load(join(data_folder, "spikes.clusters.npy"))
-waveforms = np.load(join(data_folder, "clusters.waveforms.npy"))
+spike_times = np.load(join(exp_data_folder, "spikes.times.npy"))
+spike_clusters = np.load(join(exp_data_folder, "spikes.clusters.npy"))
+waveforms = np.load(join(exp_data_folder, "clusters.waveforms.npy"))
 
 depth_sort = np.argsort(z)
 
@@ -26,10 +27,10 @@ dz = 6
 detection_threshold = 30  # µV
 
 num_elecs = len(x)
-num_tsteps = waveforms.shape[1]
+exp_num_tsteps = waveforms.shape[1]
 num_neurons = waveforms.shape[0]
 sampling_rate = 30000  # Hz
-dt = 1 / sampling_rate * 1000
+exp_dt = 1 / sampling_rate * 1000
 #print(dt)
 grid_shape = (int(num_elecs / 8), 8)
 
@@ -37,7 +38,7 @@ x_grid = x.reshape(grid_shape)
 z_grid = z.reshape(grid_shape)
 
 #tstop = 2
-tvec = np.arange(num_tsteps) * dt
+exp_tvec = np.arange(exp_num_tsteps) * exp_dt
 #print("Num elecs: ", num_elecs)
 
 #print(x.shape)
@@ -180,8 +181,9 @@ def analyse_waveform_collection(waveforms, tvec, name):
     max_amp_xz = []
     max_amp_width = []
     num_elecs_above_threshold = []
+    dt = tvec[1] - tvec[0]
 
-    for neuron_id in range(num_neurons):
+    for neuron_id in range(waveforms.shape[0]):
         waveform = waveforms[neuron_id]
         #max_neg_peak = np.min(waveform, axis=0)
 
@@ -205,9 +207,10 @@ def analyse_waveform_collection(waveforms, tvec, name):
         num_elecs_above_threshold.append(num_detectable_elecs)
 
     plt.close("all")
-    num_cols = 3
-    num_rows = 2
-    fig = plt.figure(figsize=[16, 9])
+    num_cols = 5
+    num_rows = 1
+    fig = plt.figure(figsize=[16, 3])
+    fig.subplots_adjust(bottom=0.2, right=0.98, left=0.05)
     ax_amp = fig.add_subplot(num_rows, num_cols, 1, ylabel="#",
                              xlabel="max p2p amp (µV)",
                              xlim=[0, 1000])
@@ -241,9 +244,18 @@ def analyse_waveform_collection(waveforms, tvec, name):
     # ax_amp_vs_x.scatter(np.array(max_amp_xz)[:, 0], max_amps, c='k', s=3)
     # ax_amp_vs_y.scatter(np.array(max_amp_xz)[:, 1], max_amps, c='k', s=3)
 
-
     plt.savefig("analysis_waveforms_%s.png" % name)
 
+
+def analyse_simulated_waveform_collections():
+    sim_dt = 2**-5
+    sim_name = "hay"
+    hay_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
+    sim_num_tsteps = hay_waveforms.shape[1]
+    #num_neurons = hay_waveforms.shape[0]
+    sim_tvec = np.arange(sim_num_tsteps) * sim_dt
+    #print(hay_waveforms.shape)
+    analyse_waveform_collection(hay_waveforms, sim_tvec, "sim_%s_data" % sim_name)
 
 
 def plot_all_waveforms():
@@ -252,12 +264,14 @@ def plot_all_waveforms():
         print(neuron_id, "/", num_neurons)
         fig_name = "exp_data_%d" % neuron_id
         waveform = waveforms[neuron_id]
-        plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder)
+        plot_NPUltraWaveform(waveform, exp_tvec, fig_name, fig_folder)
 
         # if neuron_id > 2:
         #      break
 
 
 if __name__ == '__main__':
-    plot_all_waveforms()
-    analyse_waveform_collection(waveforms, tvec, "exp_data")
+    # plot_all_waveforms()
+    analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
+    # analyse_simulated_waveform_collections()
+
