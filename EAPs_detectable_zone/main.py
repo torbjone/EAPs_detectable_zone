@@ -27,6 +27,8 @@ imem_eap_folder = join("..", "imem_EAPs")
 os.makedirs(imem_eap_folder, exist_ok=True)
 hay_folder = join(cell_models_folder, "L5bPCmodelsEH")
 bbp_folder = join(cell_models_folder, "bbp_models")
+allen_folder = join(cell_models_folder, "allen_models")
+
 bbp_mod_folder = join(cell_models_folder, "bbp_mod")
 os.makedirs(bbp_folder, exist_ok=True)
 
@@ -73,6 +75,35 @@ def download_BBP_model(cell_name="L5_TTPC2_cADpyr232_1"):
     # attempt to set up a folder with all unique mechanism mod files, compile, and
     # load them all
     compile_bbp_mechanisms(cell_name)
+
+
+def download_allen_model(cell_name="473863035"):
+
+    print("Downloading Allen model: ", cell_name)
+    url = "https://api.brain-map.org/neuronal_model/download/%s" % cell_name
+
+    cwd = os.getcwd()
+    os.chdir(allen_folder)
+
+    os.system("wget %s" % url)
+    os.system("mv %s neuronal_model_%s.zip" % (cell_name, cell_name))
+
+    os.chdir(cwd)
+
+    import zipfile
+
+    myzip = zipfile.ZipFile(join(allen_folder, 'neuronal_model_{}.zip'.format(cell_name)), 'r')
+    myzip.extractall(join(allen_folder, 'neuronal_model_{}'.format(cell_name)))
+    myzip.close()
+    os.remove(join(allen_folder, 'neuronal_model_{}.zip'.format(cell_name)))
+
+    mod_folder = join(allen_folder, 'neuronal_model_{}'.format(cell_name), "modfiles")
+    if not os.path.isdir(join(mod_folder, "x86_64")):
+        print("Compiling mechanisms ...")
+        cwd = os.getcwd()
+        os.chdir(mod_folder)
+        os.system("nrnivmodl")
+        os.chdir(cwd)
 
 
 def compile_bbp_mechanisms(cell_name):
@@ -235,6 +266,49 @@ def download_hay_model():
         neuron.load_mechanisms(mod_pth)
 
 
+def point_axon_down(cell):
+    '''
+    Make the axon of Hay model point downwards, start at soma mid point,
+    comp for soma diameter
+
+    Keyword arguments:
+    :
+        cell : LFPy.TemplateCell instance
+
+    '''
+    iaxon = cell.get_idx(section='axon')
+    isoma = cell.get_idx(section='soma')
+    cell.x[iaxon, 0] = cell.x[isoma].mean(axis=1)
+    cell.x[iaxon, 1] = cell.x[isoma].mean(axis=1)
+
+    cell.y[iaxon, 0] = cell.y[isoma].mean(axis=1)
+    cell.y[iaxon, 1] = cell.y[isoma].mean(axis=1)
+
+    j = 0
+    for i in iaxon:
+        cell.z[i, 0] = cell.z[isoma].mean(axis=1) \
+                       - cell.d[isoma] / 2 - cell.length[i] * j
+        cell.z[i, 1] = cell.z[isoma].mean(axis=1) \
+                       - cell.d[isoma] / 2 - cell.length[i] - cell.length[i] * j
+        j += 1
+
+    ##point the pt3d axon as well
+    for sec in cell.allseclist:
+        if sec.name().rfind('axon') >= 0:
+            x0 = cell.x[cell.get_idx(sec.name())[0], 0]
+            y0 = cell.y[cell.get_idx(sec.name())[0], 0]
+            z0 = cell.z[cell.get_idx(sec.name())[0], 0]
+            L = sec.L
+            for j in range(int(neuron.h.n3d(sec=sec))):
+                neuron.h.pt3dchange(j, x0, y0, z0,
+                                    sec.diam, sec=sec)
+                z0 -= L / (neuron.h.n3d(sec=sec) - 1)
+
+    # let NEURON know about the changes we just did:
+    neuron.h.define_shape()
+    cell.x3d, cell.y3d, cell.z3d, cell.diam3d, cell.arc3d = cell._collect_pt3d()
+
+
 def return_hay_cell(tstop, dt):
     if not os.path.isfile(join(hay_folder, 'morphologies', 'cell1.asc')):
         download_hay_model()
@@ -259,6 +333,7 @@ def return_hay_cell(tstop, dt):
     #Initialize cell instance, using the LFPy.Cell class
     cell = LFPy.TemplateCell(**cell_params)
     cell.set_rotation(x=4.729, y=-3.166)
+    point_axon_down(cell)
     return cell
 
 
@@ -634,58 +709,58 @@ def detectable_volume(ax, cell, x_grid, y_grid, z_grid,
 
 def run_chosen_allen_models():
 
-    model_ids = [f.split('_')[-1] for f in os.listdir(cell_models_folder)
-                  if f.startswith("neuronal_model_") and
-                  os.path.isdir(join(cell_models_folder, f))][::-1]
+    #model_ids = [f.split('_')[-1] for f in os.listdir(cell_models_folder)
+    #              if f.startswith("neuronal_model_") and
+    #              os.path.isdir(join(cell_models_folder, f))][::-1]
 
-    print(model_ids)
+    #print(model_ids)
 
-    # model_ids = [
-    #     488462783,
-    #     485720587,
-    #     478047816,
-    #     482934212,
-    #     483108201,
-    #     485513184,
-    #     486508647,
-    #     486509958,
-    #     486558444,
-    #     486909496,
-    #     488083972,
-    #     491766131,
-    #     497229075,
-    #     497229124,
-    #     497232312,
-    #     497232482,
-    #     497232507,
-    #     497232564,
-    #     497232571,
-    #     497232692,
-    #     497232839,
-    #     497232858,
-    #     497232999,
-    #     497233049,
-    #     497233139,
-    #     497233278,
-    #     497233307,
-    #     515175260,
-    #     515175291,
-    #     515175354,
-    #     329321704,
-    #     471087975,
-    #     472299294,
-    #     472300877,
-    #     472451419,
-    #     473834758,
-    #     473862496,
-    #     473863035,
-    #     473863578,
-    #     477880244,
-    #     478809991,
-    #     478513398,
-    #     480630344,
-    #     480633088,
-    #              ]
+    model_ids = [
+        488462783,
+        485720587,
+        478047816,
+        482934212,
+        483108201,
+        485513184,
+        486508647,
+        486509958,
+        486558444,
+        486909496,
+        488083972,
+        491766131,
+        497229075,
+        497229124,
+        497232312,
+        497232482,
+        497232507,
+        497232564,
+        497232571,
+        497232692,
+        497232839,
+        497232858,
+        497232999,
+        497233049,
+        497233139,
+        497233278,
+        497233307,
+        515175260,
+        515175291,
+        515175354,
+        329321704,
+        471087975,
+        472299294,
+        472300877,
+        472451419,
+        473834758,
+        473862496,
+        473863035,
+        473863578,
+        477880244,
+        478809991,
+        478513398,
+        480630344,
+        480633088,
+     ]
 
     #print(model_ids)
     #model_ids = [f for f in model_ids if f.startswith("4972")]
@@ -703,7 +778,9 @@ def run_chosen_allen_models():
         pid = os.fork()
         if pid == 0:
 
-            model_folder = join(cell_models_folder, "neuronal_model_%s" % model_id)
+            model_folder = join(allen_folder, "neuronal_model_%s" % model_id)
+            if not os.path.isdir(model_folder):
+                download_allen_model(model_id)
             cell = return_allen_cell_model(model_folder, dt, tstop)
             eap_predictors = get_cell_spike_amp_tranfer_function(cell)
 
@@ -811,7 +888,7 @@ def run_chosen_allen_models():
             eap_predictors["vmem_p2p"] = np.max(cell.vmem[0]) - np.min(cell.vmem[0])
 
             os.makedirs(data_folder, exist_ok=True)
-            np.save(join(data_folder, "eap_predictors_{:s}.npy".format(model_id)), eap_predictors)
+            np.save(join(data_folder, "eap_predictors_%s.npy" % model_id), eap_predictors)
 
             ax3.text(1, np.min(eaps_hd[0])/2, r"$V_{\rm e}$")
             ax3.set_yticks([0])
@@ -1257,11 +1334,11 @@ def recreate_allen_data_hay():
 
     import analyse_exp_data as axd
 
-    dt = 2**-7
+    dt = 2**-5
     tstop = 120
     filt_dict_high_pass = {'highpass_freq': 300,
                            'lowpass_freq': None,
-                           'order': 4,
+                           'order': 1,
                            'filter_function': 'filtfilt',
                            'fs': 1 / (dt / 1000),
                            'axis': -1
@@ -1270,18 +1347,18 @@ def recreate_allen_data_hay():
     os.makedirs(fig_folder, exist_ok=True)
     num_trials = 20
     cell = return_hay_cell(tstop, dt)
-    synapse, cell = insert_current_stimuli(cell, -0.4)
-    cell.simulate(rec_vmem=True, rec_imem=True)
-    print(np.max(cell.somav))
-    spiketime_idx = return_spiketime_idx(cell)
-    t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
+    #synapse, cell = insert_current_stimuli(cell, -0.4)
+    #cell.simulate(rec_vmem=True, rec_imem=True)
+    cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt_%s.npy" % "hay"))
+    cell.tvec = np.arange(len(cell.imem[0, :])) * dt
+    #print(np.max(cell.somav))
+    #spiketime_idx = return_spiketime_idx(cell)
+    #t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
     for trial_idx in range(num_trials):
 
         pid = os.fork()
         if pid == 0:
-
             data_folder = join("..", "exp_data", "NPUltraWaveforms")
-
             elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
             elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
 
@@ -1293,18 +1370,21 @@ def recreate_allen_data_hay():
                 "method": "root_as_point",
             }
             np.random.seed(12345 + trial_idx)
-            cell.set_rotation(z=np.random.uniform(0, 2 * np.pi))
-            cell.set_pos(x=np.random.uniform(-axd.dx, np.max(axd.x) + axd.dx),
+            cell.set_rotation(x=np.random.uniform(0, 2 * np.pi) / 24,
+                              y=np.random.uniform(0, 2 * np.pi) / 24,
+                              z=np.random.uniform(0, 2 * np.pi))
+
+            cell.set_pos(x=np.random.uniform(-axd.dx * 3, np.max(axd.x) + axd.dx * 3),
                          y=np.random.uniform(-50, -10),
                          z=np.random.uniform(-axd.dz, np.max(axd.z) + axd.dz))
 
             electrode = LFPy.RecExtElectrode(cell, **elec_params)
             eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
-            eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
+            #eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
 
-            fig_name = "sim_hay_%s_filt" % trial_idx
-            t_ = cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
-            eap_ = eaps[:, t_window[0]:t_window[1]].T
+            fig_name = "sim_hay_%s_prefilt" % trial_idx
+            t_ = cell.tvec#cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
+            eap_ = eaps.T#eaps[:, t_window[0]:t_window[1]].T
             if np.max(np.abs(eap_)) > 30:
                 axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                          fig_folder, cell)
@@ -1488,7 +1568,10 @@ def realistic_stimuli_BBP():
     tstop = 2000
     cutoff = 50
     weight_scale = 0.5
-    cell_names = os.listdir(bbp_folder)
+    cell_names = [f[:-4] for f in os.listdir(bbp_folder) if f.endswith(".zip")]
+    print(cell_names)
+    if len(cell_names) == 0:
+        raise RuntimeError("No cell models in folder!")
     for cell_name in cell_names:
         if os.path.isfile(os.path.join(imem_eap_folder,
                                        "imem_ufilt_%s.npy" % cell_name)):
@@ -1523,6 +1606,54 @@ def realistic_stimuli_BBP():
                     weight_scale_ *= 1.5
 
 
+
+def realistic_stimuli_allen():
+
+    dt = 2**-5
+    tstop = 2000
+    cutoff = 50
+    weight_scale = 0.5
+    cell_names = [f[-9:] for f in os.listdir(allen_folder) if f.startswith("neuronal_model") and
+                  os.path.isdir(join(allen_folder, f))]
+    print(cell_names)
+    if len(cell_names) == 0:
+        raise RuntimeError("No cell models in folder!")
+    for cell_name in cell_names:
+        if os.path.isfile(os.path.join(imem_eap_folder,
+                                       "imem_ufilt_%s.npy" % cell_name)):
+            sim_success = True
+            print("skipping ", cell_name)
+        else:
+            sim_success = False
+        weight_scale_ = weight_scale
+        while not sim_success:
+            pid = os.fork()
+            if pid == 0:
+                model_folder = join(allen_folder, "neuronal_model_%s" % cell_name)
+                if not os.path.isdir(model_folder):
+                    download_allen_model(cell_name)
+                cell = return_allen_cell_model(model_folder, dt, tstop)
+                insert_distributed_synaptic_input(cell, weight_scale_)
+                cell.simulate(rec_vmem=True, rec_imem=True)
+
+                t0 = np.argmin(np.abs(cell.tvec - cutoff))
+                cell.tvec = cell.tvec[t0:] - cell.tvec[t0]
+                cell.imem = cell.imem[:, t0:]
+                cell.vmem = cell.vmem[:, t0:]
+                cell.somav = cell.somav[t0:]
+                plot_spikes(cell, cell_name)
+                os._exit(0)
+            else:
+                os.waitpid(pid, 0)
+                # plt.pause(0.1)
+                if os.path.isfile(os.path.join(imem_eap_folder,
+                                               "imem_ufilt_%s.npy" % cell_name)):
+                    sim_success = True
+                else:
+                    weight_scale_ *= 1.5
+
+
+
 def plot_spikes(cell, cell_name):
     num_elecs = 1
     elec_params = {
@@ -1547,9 +1678,13 @@ def plot_spikes(cell, cell_name):
     spike_time_idxs = return_spike_time_idxs(cell.somav)
     if len(spike_time_idxs) == 0:
         print(cell_name, " not spiking!")
-        return None
-    spike_windows = np.array([spike_time_idxs - int(1 / cell.dt),
-                     spike_time_idxs + int(1.7 / cell.dt)]).T
+        is_spiking = False
+        spike_windows = np.array([[0, len(cell.tvec)]])
+        #return None
+    else:
+        is_spiking = True
+        spike_windows = np.array([spike_time_idxs - int(1 / cell.dt),
+                         spike_time_idxs + int(1.7 / cell.dt)]).T
     eaps_filt = []
     eaps_ufilt = []
     imems_filt = []
@@ -1561,10 +1696,11 @@ def plot_spikes(cell, cell_name):
             imems_filt.append(imem_filt[:, s_wind[0]:s_wind[1]])
             imems_ufilt.append(cell.imem[:, s_wind[0]:s_wind[1]])
 
-    imem_filt_mean = np.mean(imems_filt, axis=0)
-    imem_ufilt_mean = np.mean(imems_ufilt, axis=0)
-    np.save(os.path.join(imem_eap_folder, "imem_ufilt_%s.npy" % cell_name), imem_ufilt_mean)
-    np.save(os.path.join(imem_eap_folder, "imem_filt_%s.npy" % cell_name), imem_filt_mean)
+    if is_spiking:
+        imem_filt_mean = np.mean(imems_filt, axis=0)
+        imem_ufilt_mean = np.mean(imems_ufilt, axis=0)
+        np.save(os.path.join(imem_eap_folder, "imem_ufilt_%s.npy" % cell_name), imem_ufilt_mean)
+        np.save(os.path.join(imem_eap_folder, "imem_filt_%s.npy" % cell_name), imem_filt_mean)
 
     v_e_prefilt = electrode.get_transformation_matrix() @ imem_filt_mean * 1e3
     #print(spike_windows)
@@ -1597,16 +1733,19 @@ def plot_spikes(cell, cell_name):
     ax_eap.legend([l1, l2], ["hp-filtered", "unfiltered"], frameon=False)
     fig_folder = os.path.join("..", "sim_control_figs")
     os.makedirs(fig_folder, exist_ok=True)
-    plt.savefig(join(fig_folder, "sim_EAP_%s_one_pole.png" % cell_name))
+    plt.savefig(join(fig_folder, "sim_EAP_%s_one_pole_%s.png" % (cell_name, is_spiking)))
 
 
 if __name__ == '__main__':
+
 
     # run_chosen_allen_models()
     # recreate_allen_data()
     # recreate_allen_data_hay()
     # realistic_stimuli_hay()
-    realistic_stimuli_BBP()
+    # realistic_stimuli_BBP()
+    realistic_stimuli_allen()
+
     # recreate_allen_data_BBP()
 
     # inspect_cells()

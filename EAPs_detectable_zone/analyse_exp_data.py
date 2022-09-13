@@ -259,5 +259,5 @@ def plot_all_waveforms():
 
 
 if __name__ == '__main__':
-    # plot_all_waveforms()
+    plot_all_waveforms()
     analyse_waveform_collection(waveforms, tvec, "exp_data")
