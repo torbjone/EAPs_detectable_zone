@@ -146,6 +146,132 @@ def plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None):
     fig.savefig(join(fig_folder, "waveform_%s.png" % fig_name), dpi=150)
 
 
+def animate_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None):
+
+    xlim = [-10, np.max(np.abs(x)) + 10]
+    ylim = [-10, np.max(np.abs(z)) + 10]
+
+    plt.close("all")
+    fig = plt.figure(figsize=[16, 9])
+    ax1 = fig.add_axes([0.01, 0.01, 0.12, 0.98], aspect=1, xlim=xlim, ylim=ylim,
+                       xticks=[], yticks=[], frameon=False)
+    ax2 = fig.add_axes([0.17, 0.01, 0.12, 0.98], aspect=1, xlim=xlim, ylim=ylim,
+                       xticks=[], yticks=[], frameon=False,)
+    ax3 = fig.add_axes([0.32, 0.01, 0.22, 0.95], ylabel="electrode number",
+                       xticks=[], yticks=[], frameon=False)
+    ax4 = fig.add_axes([0.63, 0.1, 0.35, 0.86], xlabel="time (ms)",
+                       ylabel="µV")
+
+    #cax_fp = fig.add_axes([0.28, 0.1, 0.01, 0.2])
+    cax_t = fig.add_axes([0.55, 0.2, 0.01, 0.2])
+
+    ax1.scatter(x, z, c='gray', s=1)
+    if cell is not None:
+
+        zips = []
+        for x1, x2 in cell.get_idx_polygons(projection="xz"):
+            zips.append(list(zip(x1, x2)))
+        polycol = PolyCollection(zips,
+                                 edgecolors='none',
+                                 facecolors='0.8',
+                                 rasterized=True)
+
+        ax1.add_collection(polycol)
+
+    eap_norm = np.max(np.abs(waveform))
+
+    max_peak_idxs = np.argmax(np.abs(waveform), axis=0)
+    neg_peak = np.min(waveform, axis=0)
+
+    img = ax3.imshow(waveform[:, depth_sort].T, cmap="bwr",
+               vmax=eap_norm, vmin=-eap_norm, origin="lower",
+               extent=[0, tvec[-1], 0, np.max(z)])
+    ax3.axis("auto")
+    cbar = plt.colorbar(img, cax=cax_t)
+    cbar.set_label("µV")
+
+    ax3.plot([1, 2], [-2, -2], c='k')
+    ax3.text(1.5, -3, "1 ms", va="top", ha="center")
+
+
+
+    #levels = (-1e9, -detection_threshold, 1e9)
+    #ax2.contour(x_grid, z_grid, neg_peak.reshape(grid_shape),
+    #            levels=levels, colors='cyan')
+
+    #cbar2 = plt.colorbar(img2, cax=cax_fp)
+    #cbar2.set_ticks([-eap_norm, 0, eap_norm])
+    #cax_fp.axhline(-detection_threshold, c='cyan', ls='--')
+    #cbar2.set_label("µV")
+    x_norm = 0.8 * dx / tvec[-1]
+    y_norm = 0.9 * dz / eap_norm
+    eap_clr = lambda eap_min: plt.cm.viridis(0.0 + eap_min / np.min(neg_peak))
+    for elec_idx in range(num_elecs):
+        x_ = x[elec_idx] + tvec * x_norm
+        y_ = z[elec_idx] + waveform[:, elec_idx] * y_norm
+        ax1.plot(x_, y_, lw=1, c='k')
+        ax4.plot(tvec, waveform[:, elec_idx], zorder=-neg_peak[elec_idx],
+                 c=eap_clr(neg_peak[elec_idx]))
+
+    ax4.axhline(-detection_threshold, c='cyan', ls="--")
+    ax4.text(0.1, -detection_threshold*1.05,
+             "detection\nthreshold", c="cyan", va="top")
+
+    ax1.plot([50, 50], [200, 200 + eap_norm * y_norm], c='k')
+    ax1.text(52, 200 + eap_norm * y_norm / 2, "{:1.1f} µV".format(eap_norm),
+             va="center", ha="left")
+
+    ax1.plot([50, 50], [30 * dz, 30 * dz + dz], c='gray')
+    ax1.text(52, 30 * dz + dz / 2, "{:d} µm".format(dz),
+             va="center", ha="left", color="gray")
+
+    ax2.plot([45, 45], [30 * dz, 30 * dz + dz], c='gray')
+    ax2.text(47, 30 * dz + dz / 2, "{:d} µm".format(dz),
+             va="center", ha="left", color="gray")
+
+    ax1.plot([1 * dx, 1 * dx + dx], [-2, -2], c='gray')
+    ax1.text(1 * dx + dx / 2, -3, "{:d} µm".format(dx),
+             va="top", ha="center", color='gray')
+
+    ax1.plot([6 * dx, 6 * dx + tvec[-1] * x_norm], [-2, -2], c='k')
+    ax1.text(6 * dx + tvec[-1] * x_norm / 2, -3, "{:1.1f} ms".format(tvec[-1]),
+             va="top", ha="center")
+
+    simplify_axes(ax4)
+    mark_subplots([ax1, ax2], xpos=0.05, ypos=1.0)
+    mark_subplots([ax3, ax4], ["C", "D"], xpos=0.0, ypos=1.03)
+    os.makedirs(fig_folder, exist_ok=True)
+
+
+    t_idx = 0
+    lax3 = ax3.axvline(tvec[t_idx], ls='--', c='gray')
+    lax4 = ax4.axvline(tvec[t_idx], ls='--', c='gray')
+    time_marker = ax2.text(1, ylim[1] - 2.2, "t = {:1.2f} ms".format(tvec[t_idx]))
+    img2 = ax2.contourf(x_grid, z_grid, waveform[t_idx, :].reshape(grid_shape), levels=25,
+                    cmap="bwr", vmin=-eap_norm, vmax=eap_norm)
+
+    for t_idx in range(len(tvec)):
+        print(t_idx + 1, len(tvec))
+        lax3.set_xdata(tvec[t_idx])
+        lax4.set_xdata(tvec[t_idx])
+        for coll in img2.collections:
+            coll.remove()
+
+        img2 = ax2.contourf(x_grid, z_grid, waveform[t_idx, :].reshape(grid_shape), levels=25,
+                                cmap="bwr", vmin=-eap_norm, vmax=eap_norm)
+        time_marker.set_text("t = {:1.2f} ms".format(tvec[t_idx]))
+        fig.savefig(join(fig_folder, "waveform_%s_%04d.png" % (fig_name, t_idx)), dpi=150)
+
+    cmd = "ffmpeg -framerate 5 -i %s" % join(fig_folder, "waveform_{:s}_%04d.png ".format(fig_name))
+    cmd += "-c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p "
+    cmd += "%s.mp4" % join(fig_folder, "..", "..", fig_name)
+    print(cmd)
+    os.system(cmd)
+    rm_cmd = "rm %s/*.png" % fig_folder
+    print(rm_cmd)
+    os.system(rm_cmd)
+
+
 def return_spike_width(eap, dt):
     """ Full width half maximum"""
 
@@ -234,9 +360,9 @@ def analyse_waveform_collection(waveforms, tvec, name):
                                        xlim=[0, 1000], ylim=[0, 300])
 
 
-    ax_amp.hist(max_amps, bins=200, color='k')
+    ax_amp.hist(max_amps, bins=50, color='k')
     ax_width.hist(max_amp_width, bins=40, color='k')
-    ax_detect.hist(num_elecs_above_threshold, bins=200, color='k')
+    ax_detect.hist(num_elecs_above_threshold, bins=50, color='k')
 
     ax_amp_vs_width.scatter(max_amps, max_amp_width, c='k', s=3)
     ax_amp_vs_detect.scatter(max_amps, num_elecs_above_threshold, c='k', s=3)
@@ -245,17 +371,20 @@ def analyse_waveform_collection(waveforms, tvec, name):
     # ax_amp_vs_y.scatter(np.array(max_amp_xz)[:, 1], max_amps, c='k', s=3)
 
     plt.savefig("analysis_waveforms_%s.png" % name)
+    plt.savefig("analysis_waveforms_%s.pdf" % name)
 
 
 def analyse_simulated_waveform_collections():
     sim_dt = 2**-5
-    sim_name = "hay"
-    hay_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
-    sim_num_tsteps = hay_waveforms.shape[1]
-    #num_neurons = hay_waveforms.shape[0]
-    sim_tvec = np.arange(sim_num_tsteps) * sim_dt
-    #print(hay_waveforms.shape)
-    analyse_waveform_collection(hay_waveforms, sim_tvec, "sim_%s_data" % sim_name)
+    sim_names = ["hallermann", "allen", "hay", "BBP"]
+    for sim_name in sim_names:
+        #sim_name = "allen"
+        sim_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
+        sim_num_tsteps = sim_waveforms.shape[1]
+        #num_neurons = hay_waveforms.shape[0]
+        sim_tvec = np.arange(sim_num_tsteps) * sim_dt
+        #print(hay_waveforms.shape)
+        analyse_waveform_collection(sim_waveforms, sim_tvec, "sim_%s_data3" % sim_name)
 
 
 def plot_all_waveforms():
@@ -270,8 +399,21 @@ def plot_all_waveforms():
         #      break
 
 
+def animate_sim_waveform():
+    sim_dt = 2 ** -5
+    sim_name = ["hallermann", "allen", "hay", "BBP"][3]
+    waveform_idx = 14
+    sim_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
+    sim_num_tsteps = sim_waveforms.shape[1]
+    sim_tvec = np.arange(sim_num_tsteps) * sim_dt
+    fig_folder_sim = join(sim_data_folder, "anim", sim_name)
+    animate_NPUltraWaveform(sim_waveforms[waveform_idx],
+                            sim_tvec, "anim_%s_%d" % (sim_name, waveform_idx),
+                            join(fig_folder_sim))
+
 if __name__ == '__main__':
     # plot_all_waveforms()
-    analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
+    #analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
     # analyse_simulated_waveform_collections()
-
+    animate_NPUltraWaveform(waveforms[6], exp_tvec, "anim_exp_6", join(fig_folder, "..", "anim"))
+    # animate_sim_waveform()
