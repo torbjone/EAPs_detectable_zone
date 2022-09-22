@@ -78,6 +78,8 @@ def plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None):
                                  rasterized=True)
 
         ax1.add_collection(polycol)
+        from main import plot_superimposed_sec_type
+        plot_superimposed_sec_type(cell, ax1)
 
     eap_norm = np.max(np.abs(waveform))
 
@@ -112,7 +114,7 @@ def plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None):
     for elec_idx in range(num_elecs):
         x_ = x[elec_idx] + tvec * x_norm
         y_ = z[elec_idx] + waveform[:, elec_idx] * y_norm
-        ax1.plot(x_, y_, lw=1, c='k')
+        ax1.plot(x_, y_, lw=1, c='k', zorder=10)
         ax4.plot(tvec, waveform[:, elec_idx], zorder=-neg_peak[elec_idx],
                  c=eap_clr(neg_peak[elec_idx]))
 
@@ -336,7 +338,8 @@ def analyse_waveform_collection(waveforms, tvec, name):
     num_cols = 5
     num_rows = 1
     fig = plt.figure(figsize=[16, 3])
-    fig.subplots_adjust(bottom=0.2, right=0.98, left=0.05)
+    fig.subplots_adjust(bottom=0.2, right=0.98, left=0.09)
+    fig.text(0.01, 0.5, name, rotation=90, va="center")
     ax_amp = fig.add_subplot(num_rows, num_cols, 1, ylabel="#",
                              xlabel="max p2p amp (µV)",
                              xlim=[0, 1000])
@@ -348,17 +351,10 @@ def analyse_waveform_collection(waveforms, tvec, name):
                              xlim=[0, 300])
     ax_amp_vs_width = fig.add_subplot(num_rows, num_cols, 4, xlabel="max p2p (µV)",
                              ylabel="width (ms)", ylim=[0, 0.6], xlim=[0, 1000])
-
-    # ax_amp_vs_x = fig.add_subplot(num_rows, num_cols, 8, xlabel="x (µm)",
-    #                         ylabel="max p2p (µV)")
-    # ax_amp_vs_y = fig.add_subplot(num_rows, num_cols, 9, xlabel="y (µm)",
-    #                         ylabel="max p2p (µV)")
-
     ax_amp_vs_detect = fig.add_subplot(num_rows, num_cols, 5,
                                        xlabel="max p2p amp (µV)",
                             ylabel="# elecs > %d µV" % detection_threshold,
                                        xlim=[0, 1000], ylim=[0, 300])
-
 
     ax_amp.hist(max_amps, bins=50, color='k')
     ax_width.hist(max_amp_width, bins=40, color='k')
@@ -366,25 +362,19 @@ def analyse_waveform_collection(waveforms, tvec, name):
 
     ax_amp_vs_width.scatter(max_amps, max_amp_width, c='k', s=3)
     ax_amp_vs_detect.scatter(max_amps, num_elecs_above_threshold, c='k', s=3)
-
-    # ax_amp_vs_x.scatter(np.array(max_amp_xz)[:, 0], max_amps, c='k', s=3)
-    # ax_amp_vs_y.scatter(np.array(max_amp_xz)[:, 1], max_amps, c='k', s=3)
-
+    simplify_axes(fig.axes)
     plt.savefig("analysis_waveforms_%s.png" % name)
-    plt.savefig("analysis_waveforms_%s.pdf" % name)
+    plt.savefig("analysis_waveforms_%s.pdf" % name, dpi=100)
 
 
 def analyse_simulated_waveform_collections():
     sim_dt = 2**-5
     sim_names = ["hallermann", "allen", "hay", "BBP"]
     for sim_name in sim_names:
-        #sim_name = "allen"
         sim_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
         sim_num_tsteps = sim_waveforms.shape[1]
-        #num_neurons = hay_waveforms.shape[0]
         sim_tvec = np.arange(sim_num_tsteps) * sim_dt
-        #print(hay_waveforms.shape)
-        analyse_waveform_collection(sim_waveforms, sim_tvec, "sim_%s_data3" % sim_name)
+        analyse_waveform_collection(sim_waveforms, sim_tvec, "sim_%s_data" % sim_name)
 
 
 def plot_all_waveforms():
@@ -394,15 +384,14 @@ def plot_all_waveforms():
         fig_name = "exp_data_%d" % neuron_id
         waveform = waveforms[neuron_id]
         plot_NPUltraWaveform(waveform, exp_tvec, fig_name, fig_folder)
-
         # if neuron_id > 2:
         #      break
 
 
 def animate_sim_waveform():
-    sim_dt = 2 ** -5
-    sim_name = ["hallermann", "allen", "hay", "BBP"][3]
-    waveform_idx = 14
+    sim_dt = 2**-5
+    sim_name = ["hallermann", "allen", "hay", "BBP"][0]
+    waveform_idx = 29
     sim_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
     sim_num_tsteps = sim_waveforms.shape[1]
     sim_tvec = np.arange(sim_num_tsteps) * sim_dt
@@ -413,7 +402,7 @@ def animate_sim_waveform():
 
 if __name__ == '__main__':
     # plot_all_waveforms()
-    #analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
+    # analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
     # analyse_simulated_waveform_collections()
-    animate_NPUltraWaveform(waveforms[6], exp_tvec, "anim_exp_6", join(fig_folder, "..", "anim"))
+    animate_NPUltraWaveform(waveforms[53], exp_tvec, "anim_exp_53", join(fig_folder, "..", "anim"))
     # animate_sim_waveform()

@@ -421,6 +421,7 @@ def return_hallermann_cell(tstop, dt, ):
     cell.set_rotation(x=np.pi/2, y=-0.1, z=0)
     return cell
 
+
 def save_neural_spike_data(cell, data_folder, sim_name, elec_params):
 
     grid_electrode = LFPy.RecExtElectrode(cell, **elec_params)
@@ -461,7 +462,6 @@ def return_allen_cell_model(model_folder, dt, tstop):
         os.chdir(mod_folder)
         os.system("nrnivmodl")
         os.chdir(cwd)
-
 
     if not hasattr(neuron.h, "CaDynamics"):
         neuron.load_mechanisms(mod_folder)
@@ -1238,6 +1238,66 @@ def plot_cell_secs(cell, ax_m_side, ax_m_top):
     return cell_clr_list
 
 
+def plot_superimposed_sec_type(cell, ax):
+
+    possible_names = ["Myelin", "axon", "Unmyelin", "Node", "node", "my",
+                      "hilloc",
+                      "hill", "apic", "dend", "soma"]
+    axon_names = ["Myelin", "axon", "Unmyelin", "Node", "node", "my",
+                      "hilloc",
+                      "hill"]
+    sec_clrs = {"Myelin": 'olive',
+            "dend": '0.6',
+            "soma": '0.0',
+            'apic': '0.8',
+            "axon": 'lightgreen',
+            "node": 'r',
+            "my": 'olive',
+            "Unmyelin": 'lightgreen',
+            "Node": 'r',
+            "hilloc": 'lightblue',
+            "hill": 'pink',}
+
+    legend_dict = {"soma": "soma",
+                   "my": "myelin",
+                   "node": "node of Ranvier",
+                   "axon": "AIS",
+                   "dend": "dend",
+                   "apic": "apic"}
+
+    used_clrs = []
+    cell_clr_list = []
+    for idx in range(len(cell.x)):
+        sec_name = cell.get_idx_name(idx)[1]
+        # if "node" in sec_name:
+        #     zorder = 5000
+        # else:
+        zorder = 9
+
+        for ax_name in axon_names:
+            if ax_name in sec_name:
+                c = sec_clrs[ax_name]
+                if not ax_name in used_clrs:
+                    used_clrs.append(ax_name)
+                cell_clr_list.append(c)
+
+                ax.plot(cell.x[idx], cell.z[idx], '-',
+                      c=c, clip_on=True, lw=1, zorder=zorder)
+                if "node" in sec_name:
+                    ax.plot(cell.x[idx].mean(), cell.z[idx].mean(), 'o', ms=3, c=c)
+
+    # lines = []
+    # line_names = []
+    # for name in used_clrs:
+    #     l, = ax.plot([0], [0], lw=2, c=sec_clrs[name])
+    #     #if not "soma" in name:
+    #     lines.append(l)
+    #     line_names.append(legend_dict[name])
+    # ax.legend(lines, line_names, frameon=False, fontsize=10,
+    #                 loc=(-0.45, -0.15), ncol=1)
+    return cell_clr_list
+
+
 def get_cell_spike_amp_tranfer_function(cell):
     somasec = None
     for sec in neuron.h.allsec():
@@ -1365,7 +1425,6 @@ def inspect_cells():
 
             T_max = get_cell_spike_amp_tranfer_function(cell)
 
-
             fig.savefig(join(fig_folder, "inspection_%s.png" % model_id), dpi=150)
             cell.__del__()
             os._exit(0)
@@ -1468,6 +1527,7 @@ def recreate_allen_data():
         "method": "root_as_point",
     }
     waveform_collection = []
+    counter = 0
     for model_id in model_ids:
 
         # pid = os.fork()
@@ -1508,14 +1568,16 @@ def recreate_allen_data():
 
             electrode = LFPy.RecExtElectrode(cell, **elec_params)
             eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
-            fig_name = "sim_allen_mouse_%s_%d_prefilt_downsampled" % (model_id, trial_idx)
+
 
             eap_ = eaps.T
             t_ = cell.tvec
             if np.max(np.abs(eap_)) > 30:
+                fig_name = "sim_allen_mouse_%s_%d_prefilt_downsampled_%d" % (model_id, trial_idx, counter)
                 axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                          fig_folder, cell)
                 waveform_collection.append(eap_)
+                counter += 1
 
                 # os._exit(0)
             # else:
@@ -1560,6 +1622,7 @@ def recreate_allen_data_hay():
         'z': elecs_z,
         "method": "root_as_point",
     }
+    counter = 0
     for trial_idx in range(num_trials):
 
         #pid = os.fork()
@@ -1580,13 +1643,15 @@ def recreate_allen_data_hay():
         eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
         #eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
 
-        fig_name = "sim_%s_%s_prefilt_downsampled" % (cell_name, trial_idx)
+
         t_ = cell.tvec#cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
         eap_ = eaps.T#eaps[:, t_window[0]:t_window[1]].T
         if np.max(np.abs(eap_)) > 30:
+            fig_name = "sim_%s_%s_prefilt_downsampled" % (cell_name, trial_idx)
             axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                      fig_folder, cell)
             waveform_collection.append(eap_)
+            counter += 1
        #     os._exit(0)
        # else:
        #     os.waitpid(pid, 0)
@@ -1630,6 +1695,7 @@ def recreate_allen_data_hallermann():
         'z': elecs_z,
         "method": "root_as_point",
     }
+    counter = 0
     for trial_idx in range(num_trials):
 
         #pid = os.fork()
@@ -1648,13 +1714,92 @@ def recreate_allen_data_hallermann():
         eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
         #eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
 
-        fig_name = "sim_%s_%s_prefilt_downsampled" % (cell_name, trial_idx)
+
         t_ = cell.tvec#cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
         eap_ = eaps.T#eaps[:, t_window[0]:t_window[1]].T
         if np.max(np.abs(eap_)) > 30:
+            fig_name = "sim_%s_%s_prefilt_downsampled" % (cell_name, counter)
             axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                      fig_folder, cell)
             waveform_collection.append(eap_)
+            counter += 1
+       #     os._exit(0)
+       # else:
+       #     os.waitpid(pid, 0)
+    np.save(join(fig_folder, "..", "waveforms_sim_%s.npy" % cell_name), waveform_collection)
+
+
+def recreate_allen_data_axon():
+
+    axon_type = "unmyelinated"
+    cell_name = "%s_axon" % axon_type
+
+    import analyse_exp_data as axd
+
+    dt = 2**-5
+    # tstop = 120
+    # filt_dict_high_pass = {'highpass_freq': 300,
+    #                        'lowpass_freq': None,
+    #                        'order': 1,
+    #                        'filter_function': 'filtfilt',
+    #                        'fs': 1 / (dt / 1000),
+    #                        'axis': -1
+    #                        }
+    fig_folder = join("..", "exp_data", "simulated", cell_name)
+    os.makedirs(fig_folder, exist_ok=True)
+    num_trials = 500
+    from ECSbook_simcode import hallermann_axon_model as ha_ax
+    if axon_type == "unmyelinated":
+        cell = ha_ax.return_constructed_unmyelinated_axon(dt, 120, 0, 1)
+    elif axon_type == "myelinated":
+        cell = ha_ax.return_constructed_myelinated_axon(dt, 120, 0, 1)
+    else:
+        raise RuntimeError("axon_type not recognized")
+
+    cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt2_%s.npy" % cell_name))[:, ::4]
+    cell.tvec = np.arange(len(cell.imem[0, :])) * dt
+
+    waveform_collection = []
+    data_folder = join("..", "exp_data", "NPUltraWaveforms")
+    elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
+    elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
+
+
+    elec_params = {
+        'sigma': sigma,  # Saline bath conductivity
+        'x': elecs_x,  # electrode requires 1d vector of positions
+        'y': np.zeros(len(elecs_x)),
+        'z': elecs_z,
+        "method": "root_as_point",
+    }
+    counter = 0
+    for trial_idx in range(num_trials):
+
+        #pid = os.fork()
+        #if pid == 0:
+
+        np.random.seed(12345 + trial_idx)
+        cell.set_rotation(x=np.random.uniform(0, 2 * np.pi) / 24,
+                          y=np.random.uniform(0, 2 * np.pi) / 24,
+                          z=np.random.uniform(0, 2 * np.pi))
+
+        cell.set_pos(x=np.random.uniform(-axd.dx * 0.5, np.max(axd.x) + axd.dx * 0.5),
+                     y=np.random.uniform(-5, -0),
+                     z=np.random.uniform(-axd.dz * 0.5, np.max(axd.z) + axd.dz * 0.5))
+
+        electrode = LFPy.RecExtElectrode(cell, **elec_params)
+        eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
+        #eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
+
+
+        t_ = cell.tvec#cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
+        eap_ = eaps.T#eaps[:, t_window[0]:t_window[1]].T
+        if np.max(np.abs(eap_)) > 5:
+            fig_name = "sim_%s_%s_prefilt_downsampled" % (cell_name, counter)
+            axd.plot_NPUltraWaveform(eap_, t_, fig_name,
+                                     fig_folder, cell)
+            waveform_collection.append(eap_)
+            counter += 1
        #     os._exit(0)
        # else:
        #     os.waitpid(pid, 0)
@@ -1697,6 +1842,7 @@ def recreate_allen_data_BBP():
         "method": "root_as_point",
     }
     waveform_collection = []
+    counter = 0
     for c_idx, cell_name in enumerate(cell_names):
 
         print(cell_name, c_idx, " / ", len(cell_names))
@@ -1736,15 +1882,17 @@ def recreate_allen_data_BBP():
             t_ = cell.tvec #cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
             eap_ = eaps.T#[:, t_window[0]:t_window[1]]
             if np.max(np.abs(eap_)) > 30:
-                fig_name = "sim_BBP_%s_%d_prefilt_downsampled" % (cell_name, trial_idx)
+                fig_name = "sim_BBP_%s_%d_prefilt_downsampled_%d" % (cell_name, trial_idx, counter)
                 axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                          fig_folder, cell)
                 waveform_collection.append(eap_)
+                counter += 1
 
             # os._exit(0)
         # else:
         #     os.waitpid(pid, 0)
     np.save(join(fig_folder, "..", "waveforms_sim_BBP.npy"), waveform_collection)
+
 
 def insert_synapses(cell, synparams, section, n, netstimParameters):
     """ Find n compartments to insert synapses onto """
@@ -2015,21 +2163,28 @@ def control_sim_allen_cells():
 
 def simulate_passing_axon():
 
-    dt = 2**-5
-    tstop = 20
+    dt = 2**-7
+    tstop = 15
     cutoff = 0
-    axon_type = "unmyelinated"
-    cell_name = "passing_axon_%s" % axon_type
+    axon_type = "myelinated"
+    cell_name = "%s_axon" % axon_type
     from ECSbook_simcode import hallermann_axon_model as ha_ax
-    cell = ha_ax.return_constructed_unmyelinated_axon(dt, tstop, 0, 1)
-    insert_current_stimuli(cell, -0.01)
+    if axon_type == "unmyelinated":
+        cell = ha_ax.return_constructed_unmyelinated_axon(dt, tstop, 0, 1, axon_diameter=None)
+    elif axon_type == "myelinated":
+        cell = ha_ax.return_constructed_myelinated_axon(dt, tstop, 0, 1, axon_diameter=None)
+    else:
+        raise RuntimeError("axon_type not recognized")
+
+    insert_current_stimuli(cell, -0.03)
+    cell.set_pos(z=-200)
     cell.simulate(rec_vmem=True, rec_imem=True)
 
     t0 = np.argmin(np.abs(cell.tvec - cutoff))
     cell.tvec = cell.tvec[t0:] - cell.tvec[t0]
     cell.imem = cell.imem[:, t0:]
     cell.vmem = cell.vmem[:, t0:]
-    cell.somav = cell.somav[t0:]
+    cell.somav = cell.vmem[0, t0:]
     plot_spikes(cell, cell_name)
 
 
@@ -2142,10 +2297,11 @@ if __name__ == '__main__':
     # realistic_stimuli_allen()
     # control_sim_allen_cells()
     # recreate_allen_data()
-    # recreate_allen_data_hay()
+    # recreate_allen_data_axon()
     # recreate_allen_data_hallermann()
+    recreate_allen_data_hay()
+    # recreate_allen_data_BBP()
     # simulate_passing_axon()
-    recreate_allen_data_BBP()
 
 
     # inspect_cells()
