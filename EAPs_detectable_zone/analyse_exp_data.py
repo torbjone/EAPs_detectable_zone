@@ -266,11 +266,11 @@ def animate_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None):
 
     cmd = "ffmpeg -framerate 5 -i %s" % join(fig_folder, "waveform_{:s}_%04d.png ".format(fig_name))
     cmd += "-c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p "
-    cmd += "%s.mp4" % join(fig_folder, "..", "..", fig_name)
-    print(cmd)
+    cmd += "%s.avi" % join(fig_folder, "..", "..", fig_name)
+    # print(cmd)
     os.system(cmd)
     rm_cmd = "rm %s/*.png" % fig_folder
-    print(rm_cmd)
+    # print(rm_cmd)
     os.system(rm_cmd)
 
 
@@ -303,7 +303,7 @@ def return_spike_width(eap, dt):
     return (t1_idx - t0_idx) * dt
 
 
-def analyse_waveform_collection(waveforms, tvec, name):
+def analyse_waveform_collection(waveforms, tvec, name, celltypes_list=None):
 
     max_amps = []
     max_amp_xz = []
@@ -311,10 +311,23 @@ def analyse_waveform_collection(waveforms, tvec, name):
     num_elecs_above_threshold = []
     dt = tvec[1] - tvec[0]
 
+    color_list = []
+
     for neuron_id in range(waveforms.shape[0]):
         waveform = waveforms[neuron_id]
         #max_neg_peak = np.min(waveform, axis=0)
-
+        if not celltypes_list is None:
+            #print(celltypes_list[neuron_id])
+            cell_type = celltypes_list[neuron_id]
+            if ("aspiny") in cell_type:
+                color_list.append("b")
+            elif ("spiny" in cell_type) or ("PC" in cell_type) or ("SS" in cell_type) or ("SP" in cell_type):
+                color_list.append("r")
+            else:
+                print(cell_type, " counted as inhibitory")
+                color_list.append("b")
+        else:
+            color_list.append('k')
         p2ps = np.max(waveform, axis=0) - np.min(waveform, axis=0)
         max_amp = np.max(np.abs(waveform), axis=0)
 
@@ -360,8 +373,8 @@ def analyse_waveform_collection(waveforms, tvec, name):
     ax_width.hist(max_amp_width, bins=40, color='k')
     ax_detect.hist(num_elecs_above_threshold, bins=50, color='k')
 
-    ax_amp_vs_width.scatter(max_amps, max_amp_width, c='k', s=3)
-    ax_amp_vs_detect.scatter(max_amps, num_elecs_above_threshold, c='k', s=3)
+    ax_amp_vs_width.scatter(max_amps, max_amp_width, c=color_list, s=3)
+    ax_amp_vs_detect.scatter(max_amps, num_elecs_above_threshold, c=color_list, s=3)
     simplify_axes(fig.axes)
     plt.savefig("analysis_waveforms_%s.png" % name)
     plt.savefig("analysis_waveforms_%s.pdf" % name, dpi=100)
@@ -369,12 +382,18 @@ def analyse_waveform_collection(waveforms, tvec, name):
 
 def analyse_simulated_waveform_collections():
     sim_dt = 2**-5
-    sim_names = ["hallermann", "allen", "hay", "BBP"]
+    sim_names = ["hallermann", "allen", "hay", "BBP"][1:2]
     for sim_name in sim_names:
+        print(sim_name)
         sim_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
+        try:
+            sim_waveforms_celltypes = np.load(join(sim_data_folder, "waveforms_sim_%s_celltype_list.npy" % sim_name))
+        except FileNotFoundError:
+            sim_waveforms_celltypes = None
+        print(sim_waveforms.shape)
         sim_num_tsteps = sim_waveforms.shape[1]
         sim_tvec = np.arange(sim_num_tsteps) * sim_dt
-        analyse_waveform_collection(sim_waveforms, sim_tvec, "sim_%s_data" % sim_name)
+        analyse_waveform_collection(sim_waveforms, sim_tvec, "sim_%s_data" % sim_name, sim_waveforms_celltypes)
 
 
 def plot_all_waveforms():
@@ -390,8 +409,8 @@ def plot_all_waveforms():
 
 def animate_sim_waveform():
     sim_dt = 2**-5
-    sim_name = ["hallermann", "allen", "hay", "BBP"][0]
-    waveform_idx = 29
+    sim_name = ["hallermann", "allen", "hay", "BBP"][-1]
+    waveform_idx = 5987
     sim_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
     sim_num_tsteps = sim_waveforms.shape[1]
     sim_tvec = np.arange(sim_num_tsteps) * sim_dt
@@ -400,9 +419,11 @@ def animate_sim_waveform():
                             sim_tvec, "anim_%s_%d" % (sim_name, waveform_idx),
                             join(fig_folder_sim))
 
+
 if __name__ == '__main__':
     # plot_all_waveforms()
     # analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
-    # analyse_simulated_waveform_collections()
-    animate_NPUltraWaveform(waveforms[53], exp_tvec, "anim_exp_53", join(fig_folder, "..", "anim"))
+    analyse_simulated_waveform_collections()
+    # animate_NPUltraWaveform(waveforms[54], exp_tvec, "anim_exp_54", join(fig_folder, "..", "anim"))
     # animate_sim_waveform()
+

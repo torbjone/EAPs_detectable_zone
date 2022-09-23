@@ -846,92 +846,93 @@ def run_chosen_allen_models():
     #     480630344,
     #     480633088,
     #  ]
-    model_ids = [329321704,
-         471087975,
-         472299294,
-         472300877,
-         472306460,
-         472363762,
-         472451419,
-         473834758,
-         473862496,
-         473863035,
-         473863578,
-         473871773,
-         476630516,
-         476637796,
-         477876583,
-         477880244,
-         478045347,
-         478047588,
-         478047816,
-         478513398,
-         478809991,
-         479427369,
-         479427516,
-         480051220,
-         480361288,
-         480624414,
-         480630344,
-         480633088,
-         482529696,
-         482657528,
-         482934212,
-         483108201,
-         483109057,
-         485507735,
-         485513184,
-         485591806,
-         485720587,
-         486052412,
-         486508647,
-         486509958,
-         486558444,
-         486909496,
-         488083972,
-         488462783,
-         491766131,
-         496490646,
-         496538888,
-         496930324,
-         497229061,
-         497229075,
-         497229082,
-         497229117,
-         497229124,
-         497229138,
-         497232298,
-         497232312,
-         497232339,
-         497232363,
-         497232419,
-         497232429,
-         497232482,
-         497232507,
-         497232564,
-         497232571,
-         497232629,
-         497232641,
-         497232692,
-         497232735,
-         497232839,
-         497232858,
-         497232946,
-         497232985,
-         497232999,
-         497233049,
-         497233125,
-         497233139,
-         497233244,
-         497233278,
-         497233285,
-         497233292,
-         497233307,
-         515175260,
-         515175291,
-         515175354,
-         527109578]
-
+    # model_ids = [329321704,
+    #      471087975,
+    #      472299294,
+    #      472300877,
+    #      472306460,
+    #      472363762,
+    #      472451419,
+    #      473834758,
+    #      473862496,
+    #      473863035,
+    #      473863578,
+    #      473871773,
+    #      476630516,
+    #      476637796,
+    #      477876583,
+    #      477880244,
+    #      478045347,
+    #      478047588,
+    #      478047816,
+    #      478513398,
+    #      478809991,
+    #      479427369,
+    #      479427516,
+    #      480051220,
+    #      480361288,
+    #      480624414,
+    #      480630344,
+    #      480633088,
+    #      482529696,
+    #      482657528,
+    #      482934212,
+    #      483108201,
+    #      483109057,
+    #      485507735,
+    #      485513184,
+    #      485591806,
+    #      485720587,
+    #      486052412,
+    #      486508647,
+    #      486509958,
+    #      486558444,
+    #      486909496,
+    #      488083972,
+    #      488462783,
+    #      491766131,
+    #      496490646,
+    #      496538888,
+    #      496930324,
+    #      497229061,
+    #      497229075,
+    #      497229082,
+    #      497229117,
+    #      497229124,
+    #      497229138,
+    #      497232298,
+    #      497232312,
+    #      497232339,
+    #      497232363,
+    #      497232419,
+    #      497232429,
+    #      497232482,
+    #      497232507,
+    #      497232564,
+    #      497232571,
+    #      497232629,
+    #      497232641,
+    #      497232692,
+    #      497232735,
+    #      497232839,
+    #      497232858,
+    #      497232946,
+    #      497232985,
+    #      497232999,
+    #      497233049,
+    #      497233125,
+    #      497233139,
+    #      497233244,
+    #      497233278,
+    #      497233285,
+    #      497233292,
+    #      497233307,
+    #      515175260,
+    #      515175291,
+    #      515175354,
+    #      527109578]
+    model_ids = [f[-9:] for f in os.listdir(allen_folder) if f.startswith("neuronal_model") and
+                  os.path.isdir(join(allen_folder, f))]
     #print(model_ids)
     #model_ids = [f for f in model_ids if f.startswith("4972")]
     dt = 2**-7
@@ -1171,6 +1172,201 @@ def run_chosen_allen_models():
         #              cell.get_closest_idx(z=1e7),]
         # idx_clr = {idx: ['b', 'cyan', 'orange', 'green', 'purple'][num]
         #            for num, idx in enumerate(plot_idxs)}
+
+
+def plot_single_cell_detectable_volume(cell, fig_name, fig_folder, fig_suptitle=""):
+    x0, x1, dx_hd = -50, 51, 2
+    z0, z1, dz_hd = -50, 51, 2
+
+    x0_ld, x1_ld, dx_ld = -30, 30, 20
+    z0_ld, z1_ld, dz_ld = -30, 30, 20
+
+    x_grid_ld, z_grid_ld = np.meshgrid(np.arange(x0_ld, x1_ld + dx_ld, dx_ld),
+                                       np.arange(z0_ld, z1_ld + dz_ld, dz_ld))
+
+    grid_elec_params_ld = {
+        'sigma': sigma,  # Saline bath conductivity
+        'x': x_grid_ld.flatten(),  # electrode requires 1d vector of positions
+        'y': np.zeros(x_grid_ld.shape).flatten(),
+        'z': z_grid_ld.flatten(),
+        "method": "root_as_point",
+    }
+
+    # save_neural_spike_data(cell, data_folder, model_id, eaps)
+
+    plt.close("all")
+    fig = plt.figure(figsize=[16, 9])
+    # fig_suptitle = "%s; %s; %s; %s" % (model_id, model_type, cell_type, cell_region)
+    fig.suptitle(fig_suptitle, size=14)
+
+    ax1 = fig.add_axes([0.05, 0.32, 0.17, 0.67], aspect=1,
+                       frameon=False, title="xz-plane",
+                       xticks=[], yticks=[])
+
+    ax2 = fig.add_axes([0.05, 0.17, 0.13, 0.13], frameon=False,
+                       xticks=[], yticks=[])
+    ax3 = fig.add_axes([0.05, 0.01, 0.13, 0.13], frameon=False,
+                       xticks=[], yticks=[])
+
+    ax4a = fig.add_axes([0.23, 0.65, 0.15, 0.25], frameon=False,
+                        xticks=[], yticks=[], aspect=1, xlim=[x0, x1],
+                        ylim=[z0, z1], title="xz-plane")
+    ax4b = fig.add_axes([0.23, 0.35, 0.15, 0.25], frameon=False,
+                        xticks=[], yticks=[], aspect=1, xlim=[x0, x1],
+                        ylim=[z0, z1], title="yz-plane")
+    ax4c = fig.add_axes([0.23, 0.05, 0.15, 0.25], frameon=False,
+                        xticks=[], yticks=[], aspect=1, xlim=[x0, x1],
+                        ylim=[z0, z1], title="xy-plane")
+
+    ax5 = fig.add_axes([0.45, 0.05, 0.15, 0.9], frameon=False,
+                       xticks=[], yticks=[], )
+
+    ax6 = fig.add_axes([0.62, 0.01, 0.37, 0.9], frameon=False,
+                       xticks=[], yticks=[],
+                       xlim=[x0_ld - dz_ld / 4, x1_ld + dz_ld],
+                       ylim=[z0_ld - dz_ld, z1_ld + dz_ld],
+                       title="xz-plane",
+                       aspect=1, )
+
+    idx_apic = np.argmax(cell.z.mean(axis=1))
+    idx_mid = cell.get_closest_idx(z=(np.max(cell.z) + np.min(cell.z)) / 2)
+    idx_bottom = cell.get_closest_idx(z=np.min(cell.z))
+    idx_soma = 0
+
+    ax1.plot([-150, -50], [200, 200], c='k', lw=2)
+    ax1.text(-100, 220, "100 µm", va="bottom", ha="center")
+
+    for ax in [ax4a, ax4b, ax4c]:
+        ax.plot([-30, -20], [35, 35], c='k', lw=2)
+        ax.text(-25, 37, "10 µm", va="bottom", ha="center")
+
+    ax2.text(1, -40, r"$V_{\rm m}$")
+    ax2.set_yticks([cell.vmem[idx_soma, 0]])
+    ax2.set_yticklabels(["{:1.0f} mV".format(cell.vmem[idx_soma, 0])])
+    ax2.plot([cell.tvec[-1], cell.tvec[-1]], [0, -50], c='k', lw=3)
+    ax2.text(cell.tvec[-1] + 2, -25, "50 mV")
+    ax2.plot([50, 60], [-93, -93], c='k', lw=3)
+    ax2.text(55, -95, "10 ms", va="top", ha="center")
+
+    elec_params = {
+        'sigma': sigma,  # Saline bath conductivity
+        'x': np.array([cell.d[0] / 2]),  # electrode requires 1d vector of positions
+        'y': np.array([0]),
+        'z': np.array([0]),
+        "method": "root_as_point",
+    }
+    electrode = LFPy.RecExtElectrode(cell, **elec_params)
+    eaps_hd = electrode.get_transformation_matrix() @ cell.imem * 1e3
+
+    # eap_predictors["id"] = model_id
+    # eap_predictors["model_type"] = model_type
+    # eap_predictors["cell_type"] = cell_type
+    # eap_predictors["cell_layer"] = cell_layer
+    # eap_predictors["eap_p2p"] = np.max(eaps_hd) - np.min(eaps_hd)
+    # eap_predictors["eap"] = eaps_hd
+    # eap_predictors["imem_p2p"] = np.max(cell.imem[0]) - np.min(cell.imem[0])
+    # eap_predictors["vmem_p2p"] = np.max(cell.vmem[0]) - np.min(cell.vmem[0])
+
+    # os.makedirs(data_folder, exist_ok=True)
+    # np.save(join(data_folder, "eap_predictors_%s.npy" % model_id), eap_predictors)
+
+    ax3.text(1, np.min(eaps_hd[0]) / 2, r"$V_{\rm e}$")
+    ax3.set_yticks([0])
+    ax3.set_yticklabels(["0 µV"])
+    ax3.plot([cell.tvec[-1], cell.tvec[-1]], [0, np.min(eaps_hd[0])], c='k', lw=3)
+    ax3.text(cell.tvec[-1] + 2, np.min(eaps_hd[0]) / 2, "{:1.0f} µV".format(np.abs(np.min(eaps_hd[0]))))
+
+    ax1.plot(elec_params["x"], elec_params["z"], 'D', c='r', ms=9)
+    # ax4a.plot(elec_params["x"], elec_params["z"], 'D', c='r', ms=9)
+
+    ax1.plot(cell.x.T, cell.z.T, c='k', zorder=-5)
+    ax1.plot(cell.x[idx_soma].mean(), cell.z[idx_soma].mean(), 'o', c='blue', ms=9)
+    ax1.plot(cell.x[idx_mid].mean(), cell.z[idx_mid].mean(), 'o', c='green', ms=9)
+    ax1.plot(cell.x[idx_bottom].mean(), cell.z[idx_bottom].mean(), 'o', c='orange', ms=9)
+    ax1.plot(cell.x[idx_apic].mean(), cell.z[idx_apic].mean(), 'o', c='purple', ms=9)
+    ax2.plot(cell.tvec, cell.vmem[idx_soma], c='blue')
+    ax2.plot(cell.tvec, cell.vmem[idx_mid], "green")
+    ax2.plot(cell.tvec, cell.vmem[idx_bottom], "orange")
+    ax2.plot(cell.tvec, cell.vmem[idx_apic], "purple")
+    ax3.plot(cell.tvec, eaps_hd[0], c='r')
+
+    spike_time_idx = extract_spike(cell)
+    ax3.axvline(spike_time_idx * cell.dt, c='gray', lw=0.5, ls='--')
+    ax2.axvline(spike_time_idx * cell.dt, c='gray', lw=0.5, ls='--')
+
+    spatiotemporal_shape(ax5, cell)
+    ax5.set_yticks([0])
+    ax5.set_yticklabels(["$z=0$"])
+    ax5.axis("auto")
+
+    x0, x1, dx = -50, 50, 2
+    z0, z1, dz = -50, 50, 2
+
+    x_grid, z_grid = np.meshgrid(np.arange(x0, x1 + dx, dx),
+                                 np.arange(z0, z1 + dz, dz))
+    y_grid = np.zeros(x_grid.shape)
+    detectable_volume(ax4a, cell, x_grid, y_grid, z_grid,
+                      projection=('x', 'z'))
+
+    y_grid, z_grid = np.meshgrid(np.arange(x0, x1 + dx, dx),
+                                 np.arange(z0, z1 + dz, dz))
+    x_grid = np.zeros(y_grid.shape)
+    detectable_volume(ax4b, cell, x_grid, y_grid, z_grid,
+                      projection=('y', 'z'))
+
+    x_grid, y_grid = np.meshgrid(np.arange(x0, x1 + dx, dx),
+                                 np.arange(x0, x1 + dx, dx))
+    z_grid = np.zeros(x_grid.shape)
+    detectable_volume(ax4c, cell, x_grid, y_grid, z_grid,
+                      projection=('x', 'y'))
+
+    grid_electrode_ld = LFPy.RecExtElectrode(cell, **grid_elec_params_ld)
+    eaps_ld = grid_electrode_ld.get_transformation_matrix() @ cell.imem * 1e3
+
+    zips = []
+    for x1, x2 in cell.get_idx_polygons(projection=('x', 'z')):
+        zips.append(list(zip(x1, x2)))
+    polycol = PolyCollection(zips,
+                             edgecolors='none',
+                             facecolors='0.9',
+                             rasterized=True)
+
+    ax6.add_collection(polycol)
+    for idx in range(len(eaps_ld)):
+        x_ = grid_elec_params_ld["x"][idx]
+        z_ = grid_elec_params_ld["z"][idx]
+        t_ = x_ + cell.tvec / cell.tvec[-1] * dx_ld * 0.8
+        eap_ = eaps_ld[idx] - eaps_ld[idx, 0]
+        norm = dz_ld * 0.45 / np.max(np.abs(eap_))
+        v_ = z_ + eap_ * norm
+
+        ax6.plot([x_ + dx_ld * 0.83, x_ + dx_ld * 0.83],
+                 [z_ + np.max(eap_) * norm, z_ + np.min(eap_) * norm], c='r', lw=2)
+        ax6.text(x_ + dx_ld * 0.8, z_ + (np.max(eap_) + np.min(eap_)) * norm / 2,
+                 "{:1.0f}\nµV".format(np.max(eap_) - np.min(eap_)),
+                 ha="right", color='r', va="center")
+        ax6.plot(x_, z_, 'o', c='k')
+        ax6.plot(t_, v_, 'k')
+
+        if idx == 0:
+            ax6.plot(np.array([x_ + 1 / cell.tvec[-1] * dx_ld * 0.8,
+                               x_ + 2 / cell.tvec[-1] * dx_ld * 0.8]),
+                     [z_ + np.min(eap_) * norm, z_ + np.min(eap_) * norm], lw=2, c='k')
+            ax6.text(x_ + 1.5 / cell.tvec[-1] * dx_ld * 0.8,
+                     z_ + np.min(eap_) * norm * 1.1, "1 ms", va="top", ha="center")
+
+    ax6.plot([15, 25], [-45, -45], c='k', lw=3)
+    ax6.text(20, -46, "10 µm", ha="center", va="top")
+
+    mark_subplots(ax1, "A", ypos=0.97, xpos=0.0)
+    mark_subplots(ax2, "B", ypos=0.97, xpos=0.0)
+    mark_subplots(ax3, "C", ypos=0.97, xpos=0.0)
+    mark_subplots(ax4a, "D", ypos=1.02, xpos=-0.05)
+    mark_subplots(ax5, "E", ypos=0.99, xpos=-0.05)
+    mark_subplots(ax6, "F", ypos=1.02, xpos=0.15)
+
+    os.makedirs(fig_folder, exist_ok=True)
+    plt.savefig(join(fig_folder, "spike_%s.png" % fig_name), dpi=150)
 
 
 def plot_cell_secs(cell, ax_m_side, ax_m_top):
@@ -1508,6 +1704,7 @@ def recreate_allen_data():
 
     print(model_ids)
 
+    # sys.exit()
     dt = 2**-5
     #tstop = 120
     data_folder = join("..", "model_scan", "sim_data")
@@ -1527,6 +1724,7 @@ def recreate_allen_data():
         "method": "root_as_point",
     }
     waveform_collection = []
+    cell_type_list = []
     counter = 0
     for model_id in model_ids:
 
@@ -1569,7 +1767,6 @@ def recreate_allen_data():
             electrode = LFPy.RecExtElectrode(cell, **elec_params)
             eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
 
-
             eap_ = eaps.T
             t_ = cell.tvec
             if np.max(np.abs(eap_)) > 30:
@@ -1577,12 +1774,14 @@ def recreate_allen_data():
                 axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                          fig_folder, cell)
                 waveform_collection.append(eap_)
+                cell_type_list.append(cell_type)
                 counter += 1
 
                 # os._exit(0)
             # else:
             #     os.waitpid(pid, 0)
     np.save(join(fig_folder, "..", "waveforms_sim_allen.npy"), waveform_collection)
+    np.save(join(fig_folder, "..", "waveforms_sim_allen_celltype_list.npy"), cell_type_list)
 
 
 def recreate_allen_data_hay():
@@ -1842,6 +2041,7 @@ def recreate_allen_data_BBP():
         "method": "root_as_point",
     }
     waveform_collection = []
+    cell_type_list = []
     counter = 0
     for c_idx, cell_name in enumerate(cell_names):
 
@@ -1886,12 +2086,14 @@ def recreate_allen_data_BBP():
                 axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                          fig_folder, cell)
                 waveform_collection.append(eap_)
+                cell_type_list.append(cell_name.split("_")[1])
                 counter += 1
 
             # os._exit(0)
         # else:
         #     os.waitpid(pid, 0)
     np.save(join(fig_folder, "..", "waveforms_sim_BBP.npy"), waveform_collection)
+    np.save(join(fig_folder, "..", "waveforms_sim_BBP_celltype_list.npy"), cell_type_list)
 
 
 def insert_synapses(cell, synparams, section, n, netstimParameters):
@@ -1988,6 +2190,7 @@ def realistic_stimuli_hay():
     cell.vmem = cell.vmem[:, t0:]
     cell.somav = cell.somav[t0:]
     plot_spikes(cell, cell_name)
+    plot_single_cell_detectable_volume(cell, "hay", join("..", "model_scan"), fig_suptitle="Hay L5 PC")
 
 
 def realistic_stimuli_hallermann():
@@ -2005,7 +2208,9 @@ def realistic_stimuli_hallermann():
     cell.imem = cell.imem[:, t0:]
     cell.vmem = cell.vmem[:, t0:]
     cell.somav = cell.somav[t0:]
+
     plot_spikes(cell, cell_name)
+    plot_single_cell_detectable_volume(cell, "hallermann", join("..", "model_scan"), fig_suptitle="Hallerman L5 PC")
 
 
 def realistic_stimuli_BBP():
@@ -2019,12 +2224,12 @@ def realistic_stimuli_BBP():
     if len(cell_names) == 0:
         raise RuntimeError("No cell models in folder!")
     for cell_name in cell_names:
-        if os.path.isfile(os.path.join(imem_eap_folder,
-                                       "imem_ufilt_%s.npy" % cell_name)):
-            sim_success = True
-            print("skipping ", cell_name)
-        else:
-            sim_success = False
+        # if os.path.isfile(os.path.join(imem_eap_folder,
+        #                                "imem_ufilt_%s.npy" % cell_name)):
+        #     sim_success = True
+        #     print("skipping ", cell_name)
+        # else:
+        sim_success = False
         weight_scale_ = weight_scale
         if "PC" in cell_name:
             weight_scale_ *= 1.5
@@ -2044,6 +2249,11 @@ def realistic_stimuli_BBP():
                 cell.vmem = cell.vmem[:, t0:]
                 cell.somav = cell.somav[t0:]
                 plot_spikes(cell, cell_name)
+                try:
+                    plot_single_cell_detectable_volume(cell, "bbp_%s" % cell_name, join("..", "model_scan", "BBP"),
+                                                   fig_suptitle=cell_name)
+                except:
+                    pass
                 os._exit(0)
             else:
                 os.waitpid(pid, 0)
@@ -2064,7 +2274,11 @@ def realistic_stimuli_allen():
     weight_scale = 1
     cell_names = [f[-9:] for f in os.listdir(allen_folder) if f.startswith("neuronal_model") and
                   os.path.isdir(join(allen_folder, f))]
+    # cell_names = [f[15:-4] for f in os.listdir(allen_folder) if f.startswith("neuronal_model") and
+    #               f.endswith(".zip")]
+
     print(cell_names)
+    # sys.exit()
     if len(cell_names) == 0:
         raise RuntimeError("No cell models in folder!")
     for cell_name in cell_names:
@@ -2104,6 +2318,7 @@ def realistic_stimuli_allen():
                 else:
                     weight_scale_ *= 1.5
                     counter += 1
+
 
 def control_sim_allen_cells():
 
@@ -2296,13 +2511,12 @@ if __name__ == '__main__':
     # realistic_stimuli_BBP()
     # realistic_stimuli_allen()
     # control_sim_allen_cells()
-    # recreate_allen_data()
+    recreate_allen_data()
     # recreate_allen_data_axon()
     # recreate_allen_data_hallermann()
-    recreate_allen_data_hay()
+    # recreate_allen_data_hay()
     # recreate_allen_data_BBP()
     # simulate_passing_axon()
-
 
     # inspect_cells()
     # analyze_eap_amplitudes()
