@@ -423,7 +423,7 @@ def animate_sim_waveform():
 if __name__ == '__main__':
     # plot_all_waveforms()
     # analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
-    analyse_simulated_waveform_collections()
-    # animate_NPUltraWaveform(waveforms[54], exp_tvec, "anim_exp_54", join(fig_folder, "..", "anim"))
+    # analyse_simulated_waveform_collections()
+    animate_NPUltraWaveform(waveforms[54], exp_tvec, "anim_exp_54", join(fig_folder, "..", "anim"))
     # animate_sim_waveform()
 
