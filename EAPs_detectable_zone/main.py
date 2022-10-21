@@ -497,7 +497,7 @@ def return_allen_cell_model(model_folder, dt, tstop):
         'morphology': morph_file,
         'v_init': -70,    # initial membrane potential
         'passive': False,   # turn on NEURONs passive mechanism for all sections
-        'nsegs_method': 'fixed_length', # spatial discretization method
+        'nsegs_method': 'fixed_length',  # spatial discretization method
         'max_nsegs_length': 20.,
         #'lambda_f' : 200.,           # frequency where length constants are computed
         'dt': dt,      # simulation time step size
@@ -2505,7 +2505,7 @@ def plot_spikes(cell, cell_name):
 
 if __name__ == '__main__':
 
-    # run_chosen_allen_models()
+    run_chosen_allen_models()
     # realistic_stimuli_hay()
     # realistic_stimuli_hallermann()
     # realistic_stimuli_BBP()
