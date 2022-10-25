@@ -1704,12 +1704,11 @@ def recreate_allen_data():
 
     print(model_ids)
 
-    # sys.exit()
     dt = 2**-5
     #tstop = 120
     data_folder = join("..", "model_scan", "sim_data")
     fig_folder = join("..", "exp_data", "simulated", "allen")
-    num_trials = 200
+    num_trials = 100
     os.makedirs(fig_folder, exist_ok=True)
     data_folder = join("..", "exp_data", "NPUltraWaveforms")
 
@@ -1721,9 +1720,13 @@ def recreate_allen_data():
         'x': elecs_x,  # electrode requires 1d vector of positions
         'y': np.zeros(len(elecs_x)),
         'z': elecs_z,
+        'r': 2.5,
+        'n': 20,
+        'N': [0, 1, 0],
         "method": "root_as_point",
     }
     waveform_collection = []
+    soma_distance_from_plane = []
     cell_type_list = []
     counter = 0
     for model_id in model_ids:
@@ -1739,6 +1742,8 @@ def recreate_allen_data():
         cell_region = cell.metadata["specimen"]["structure"]["name"]
         cell_layer = cell.metadata["specimen"]["structure"]["name"].split(",")[1]
 
+        cell_name = model_type + cell_type + ' ' + cell_region
+
         try:
             cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt2_%s.npy" % model_id))[:, ::4]
         except FileNotFoundError:
@@ -1747,7 +1752,7 @@ def recreate_allen_data():
         cell.tvec = np.arange(len(cell.imem[0, :])) * dt
 
         #if "- spiny" in cell_type and "layer 1" not in cell_region:
-        print("Running: ", model_id, model_type, cell_type, cell_layer)
+        print("Running: ", cell_name)
         # model_folder = join(cell_models_folder,  "neuronal_model_{}".format(model_id))
         #cell.__del__()
         #cell = find_good_stim_amplitude_allen(model_id, model_folder, dt, tstop)
@@ -1771,16 +1776,18 @@ def recreate_allen_data():
             t_ = cell.tvec
             if np.max(np.abs(eap_)) > 30:
                 fig_name = "sim_allen_mouse_%s_%d_prefilt_downsampled_%d" % (model_id, trial_idx, counter)
-                axd.plot_NPUltraWaveform(eap_, t_, fig_name,
-                                         fig_folder, cell)
+                # axd.plot_NPUltraWaveform(eap_, t_, fig_name,
+                #                          fig_folder, cell)
                 waveform_collection.append(eap_)
-                cell_type_list.append(cell_type)
+                cell_type_list.append(cell_name)
+                soma_distance_from_plane.append(cell.y[0].mean())
                 counter += 1
 
                 # os._exit(0)
             # else:
             #     os.waitpid(pid, 0)
     np.save(join(fig_folder, "..", "waveforms_sim_allen.npy"), waveform_collection)
+    np.save(join(fig_folder, "..", "waveforms_sim_allen_soma_distance.npy"), soma_distance_from_plane)
     np.save(join(fig_folder, "..", "waveforms_sim_allen_celltype_list.npy"), cell_type_list)
 
 
@@ -1810,6 +1817,7 @@ def recreate_allen_data_hay():
     #spiketime_idx = return_spiketime_idx(cell)
     #t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
     waveform_collection = []
+    soma_distance_from_plane = []
     data_folder = join("..", "exp_data", "NPUltraWaveforms")
     elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
     elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
@@ -1819,6 +1827,9 @@ def recreate_allen_data_hay():
         'x': elecs_x,  # electrode requires 1d vector of positions
         'y': np.zeros(len(elecs_x)),
         'z': elecs_z,
+        'r': 2.5,
+        'n': 20,
+        'N': [0, 1, 0],
         "method": "root_as_point",
     }
     counter = 0
@@ -1850,11 +1861,13 @@ def recreate_allen_data_hay():
             axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                      fig_folder, cell)
             waveform_collection.append(eap_)
+            soma_distance_from_plane.append(cell.y[0].mean())
             counter += 1
        #     os._exit(0)
        # else:
        #     os.waitpid(pid, 0)
     np.save(join(fig_folder, "..", "waveforms_sim_hay.npy"), waveform_collection)
+    np.save(join(fig_folder, "..", "waveforms_sim_hay_soma_distance.npy"), soma_distance_from_plane)
 
 
 def recreate_allen_data_hallermann():
@@ -1883,6 +1896,7 @@ def recreate_allen_data_hallermann():
     #spiketime_idx = return_spiketime_idx(cell)
     #t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
     waveform_collection = []
+    soma_distance_from_plane = []
     data_folder = join("..", "exp_data", "NPUltraWaveforms")
     elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
     elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
@@ -1892,6 +1906,9 @@ def recreate_allen_data_hallermann():
         'x': elecs_x,  # electrode requires 1d vector of positions
         'y': np.zeros(len(elecs_x)),
         'z': elecs_z,
+        'r': 2.5,
+        'n': 20,
+        'N': [0, 1, 0],
         "method": "root_as_point",
     }
     counter = 0
@@ -1921,11 +1938,14 @@ def recreate_allen_data_hallermann():
             axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                      fig_folder, cell)
             waveform_collection.append(eap_)
+            soma_distance_from_plane.append(cell.y[0].mean())
+
             counter += 1
        #     os._exit(0)
        # else:
        #     os.waitpid(pid, 0)
     np.save(join(fig_folder, "..", "waveforms_sim_%s.npy" % cell_name), waveform_collection)
+    np.save(join(fig_folder, "..", "waveforms_sim_hallermann_soma_distance.npy"), soma_distance_from_plane)
 
 
 def recreate_allen_data_axon():
@@ -2009,7 +2029,7 @@ def recreate_allen_data_BBP():
 
     import analyse_exp_data as axd
 
-    dt = 2**-5
+    dt = 2**-5  # Will only use every 4th time step of the original waveform (2**-7), see below
     #tstop = 120
 
     fig_folder = join("..", "exp_data", "simulated", "bbp")
@@ -2038,9 +2058,13 @@ def recreate_allen_data_BBP():
         'x': elecs_x,  # electrode requires 1d vector of positions
         'y': np.zeros(len(elecs_x)),
         'z': elecs_z,
+        'r': 2.5,
+        'n': 20,
+        'N': [0, 1, 0],
         "method": "root_as_point",
     }
     waveform_collection = []
+    soma_distance_from_plane = []
     cell_type_list = []
     counter = 0
     for c_idx, cell_name in enumerate(cell_names):
@@ -2083,16 +2107,18 @@ def recreate_allen_data_BBP():
             eap_ = eaps.T#[:, t_window[0]:t_window[1]]
             if np.max(np.abs(eap_)) > 30:
                 fig_name = "sim_BBP_%s_%d_prefilt_downsampled_%d" % (cell_name, trial_idx, counter)
-                axd.plot_NPUltraWaveform(eap_, t_, fig_name,
-                                         fig_folder, cell)
+                # axd.plot_NPUltraWaveform(eap_, t_, fig_name,
+                #                          fig_folder, cell)
                 waveform_collection.append(eap_)
-                cell_type_list.append(cell_name.split("_")[1])
+                cell_type_list.append(cell_name)
+                soma_distance_from_plane.append(cell.y[0].mean())
                 counter += 1
 
             # os._exit(0)
         # else:
         #     os.waitpid(pid, 0)
     np.save(join(fig_folder, "..", "waveforms_sim_BBP.npy"), waveform_collection)
+    np.save(join(fig_folder, "..", "waveforms_sim_BBP_soma_distance.npy"), soma_distance_from_plane)
     np.save(join(fig_folder, "..", "waveforms_sim_BBP_celltype_list.npy"), cell_type_list)
 
 
@@ -2505,17 +2531,17 @@ def plot_spikes(cell, cell_name):
 
 if __name__ == '__main__':
 
-    run_chosen_allen_models()
+    # run_chosen_allen_models()
     # realistic_stimuli_hay()
     # realistic_stimuli_hallermann()
     # realistic_stimuli_BBP()
     # realistic_stimuli_allen()
     # control_sim_allen_cells()
-    recreate_allen_data()
     # recreate_allen_data_axon()
-    # recreate_allen_data_hallermann()
-    # recreate_allen_data_hay()
-    # recreate_allen_data_BBP()
+    #recreate_allen_data_hallermann()
+    #recreate_allen_data_hay()
+    recreate_allen_data_BBP()
+    # recreate_allen_data()
     # simulate_passing_axon()
 
     # inspect_cells()
