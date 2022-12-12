@@ -24,6 +24,7 @@ waveforms = np.load(join(exp_data_folder, "clusters.waveforms.npy"))
 meta_data = pandas.read_csv(join(exp_data_folder, "clusters.acronym.tsv"), sep='\t')
 depth_sort = np.argsort(z)
 
+print(waveforms.shape)
 dx = 6
 dz = 6
 
@@ -1295,9 +1296,9 @@ if __name__ == '__main__':
     # plot_spike_features_waveform_collection()
     # plot_spike_features_waveform_collection_sim()
     # pca_waveform_collection_features()
-    pca_waveform_collection_combined()
+    # pca_waveform_collection_combined()
     # plot_waveform_feature_separability()
-    # analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
+    analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
     # analyse_simulated_waveform_collections()
     # animate_NPUltraWaveform(waveforms[54], exp_tvec, "anim_exp_54", join(fig_folder, "..", "anim"))
     # animate_sim_waveform()

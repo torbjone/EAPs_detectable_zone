@@ -1716,7 +1716,7 @@ def recreate_allen_data():
     elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
 
     elec_params = {
-        'sigma': sigma,  # Saline bath conductivity
+        'sigma': sigma,  # extracellular conductivity
         'x': elecs_x,  # electrode requires 1d vector of positions
         'y': np.zeros(len(elecs_x)),
         'z': elecs_z,
@@ -1776,8 +1776,8 @@ def recreate_allen_data():
             t_ = cell.tvec
             if np.max(np.abs(eap_)) > 30:
                 fig_name = "sim_allen_mouse_%s_%d_prefilt_downsampled_%d" % (model_id, trial_idx, counter)
-                # axd.plot_NPUltraWaveform(eap_, t_, fig_name,
-                #                          fig_folder, cell)
+                axd.plot_NPUltraWaveform(eap_, t_, fig_name,
+                                         fig_folder, cell)
                 waveform_collection.append(eap_)
                 cell_type_list.append(cell_name)
                 soma_distance_from_plane.append(cell.y[0].mean())
@@ -2535,12 +2535,12 @@ if __name__ == '__main__':
     # realistic_stimuli_hay()
     # realistic_stimuli_hallermann()
     # realistic_stimuli_BBP()
-    # realistic_stimuli_allen()
+    realistic_stimuli_allen()
     # control_sim_allen_cells()
     # recreate_allen_data_axon()
     #recreate_allen_data_hallermann()
     #recreate_allen_data_hay()
-    recreate_allen_data_BBP()
+    # recreate_allen_data_BBP()
     # recreate_allen_data()
     # simulate_passing_axon()
 
