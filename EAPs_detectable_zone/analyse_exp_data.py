@@ -756,11 +756,15 @@ def analyse_pca_simulated_data():
     fig_folder = join(sim_data_folder, "pca_figures_%s" % sim_name)
     os.makedirs(fig_folder, exist_ok=True)
     sim_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
+
+
     try:
         sim_waveforms_celltypes = np.load(join(sim_data_folder, "waveforms_sim_%s_celltype_list.npy" % sim_name))
     except FileNotFoundError:
         sim_waveforms_celltypes = None
     print(sim_waveforms.shape)
+    sys.exit()
+
     num_neurons = sim_waveforms.shape[0]
     sim_num_tsteps = sim_waveforms.shape[1]
     sim_tvec = np.arange(sim_num_tsteps) * sim_dt
@@ -1291,14 +1295,14 @@ def plot_waveform_feature_separability():
 if __name__ == '__main__':
     # plot_all_waveforms()
     # analyse_pca_exp_data()
-    # analyse_pca_simulated_data()
+    analyse_pca_simulated_data()
     # sim_waveform_collection_pca()
     # plot_spike_features_waveform_collection()
     # plot_spike_features_waveform_collection_sim()
     # pca_waveform_collection_features()
     # pca_waveform_collection_combined()
     # plot_waveform_feature_separability()
-    analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
+    # analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
     # analyse_simulated_waveform_collections()
     # animate_NPUltraWaveform(waveforms[54], exp_tvec, "anim_exp_54", join(fig_folder, "..", "anim"))
     # animate_sim_waveform()
