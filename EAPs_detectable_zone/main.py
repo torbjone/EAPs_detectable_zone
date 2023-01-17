@@ -9,7 +9,7 @@ import neuron
 import scipy.signal as ss
 import LFPy
 import matplotlib
-matplotlib.use("AGG")
+# matplotlib.use("AGG")
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection, LineCollection
 import elephant
@@ -408,7 +408,7 @@ def return_hallermann_cell(tstop, dt, ):
         'nsegs_method': 'lambda_f',
         'lambda_f': 500.,
         'dt': dt,  # [ms] dt's should be in powers of 2 for both,
-        'tstart': -100,  # start time of simulation, recorders start at t=0
+        'tstart': 0,  # start time of simulation, recorders start at t=0
         'tstop': tstop,
         "extracellular": False,
         "pt3d": True,
@@ -501,7 +501,7 @@ def return_allen_cell_model(model_folder, dt, tstop):
         'max_nsegs_length': 20.,
         #'lambda_f' : 200.,           # frequency where length constants are computed
         'dt': dt,      # simulation time step size
-        'tstart': -100,      # start time of simulation, recorders start at t=0
+        'tstart': 0,      # start time of simulation, recorders start at t=0
         'tstop': tstop,
         'pt3d': True,
         'custom_code': [join(cell_models_folder, 'remove_axon.hoc')]
@@ -591,6 +591,25 @@ def return_spike_time_idxs(vm):
             crossings.append(t_idx)
 
     return np.array(crossings)
+
+def return_spike_time_idxs_imem(im):
+    """Returns threshold crossings for membrane
+    potential of single compartment"""
+    # num_tsteps_in_half_ms = int(0.5 / self.dt)
+    crossings = []
+    stds = np.std(im, axis=1)
+    max_std_comp_idx = np.argmax(stds)
+    print(max_std_comp_idx)
+    threshold = 3 * stds[max_std_comp_idx]
+
+    # if np.max(im[max_std_comp_idx, :]) < threshold:
+    #     return np.array([])
+    for t_idx in range(1, len(im[max_std_comp_idx])):
+        if np.abs(im[max_std_comp_idx, t_idx - 1]) < threshold <= im[max_std_comp_idx, t_idx]:
+            crossings.append(t_idx)
+
+    return np.array(crossings)
+
 
 
 def extract_spike(cell):
@@ -935,7 +954,9 @@ def run_chosen_allen_models():
                   os.path.isdir(join(allen_folder, f))]
     #print(model_ids)
     #model_ids = [f for f in model_ids if f.startswith("4972")]
-    dt = 2**-7
+    # dt = 2**-7
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000 / 4
     tstop = 120
     data_folder = join("..", "model_scan", "sim_data")
     fig_folder = join("..", "model_scan")
@@ -1703,8 +1724,9 @@ def recreate_allen_data():
                   os.path.isdir(join(allen_folder, f))]
 
     print(model_ids)
-
-    dt = 2**-5
+    # dt = 2**-5
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000 # ???
     #tstop = 120
     data_folder = join("..", "model_scan", "sim_data")
     fig_folder = join("..", "exp_data", "simulated", "allen")
@@ -1794,8 +1816,9 @@ def recreate_allen_data():
 def recreate_allen_data_hay():
 
     import analyse_exp_data as axd
-
-    dt = 2**-5
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000
+    # dt = 2**-5
     # tstop = 120
     # filt_dict_high_pass = {'highpass_freq': 300,
     #                        'lowpass_freq': None,
@@ -1813,6 +1836,8 @@ def recreate_allen_data_hay():
     #cell.simulate(rec_vmem=True, rec_imem=True)
     cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt2_%s.npy" % cell_name))[:, ::4]
     cell.tvec = np.arange(len(cell.imem[0, :])) * dt
+
+    # print(cell.tvec, len(cell.tvec))
     #print(np.max(cell.somav))
     #spiketime_idx = return_spiketime_idx(cell)
     #t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
@@ -1853,7 +1878,6 @@ def recreate_allen_data_hay():
         eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
         #eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
 
-
         t_ = cell.tvec#cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
         eap_ = eaps.T#eaps[:, t_window[0]:t_window[1]].T
         if np.max(np.abs(eap_)) > 30:
@@ -1874,8 +1898,9 @@ def recreate_allen_data_hallermann():
 
     cell_name = "hallermann"
     import analyse_exp_data as axd
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000   # ???
 
-    dt = 2**-5
     # tstop = 120
     # filt_dict_high_pass = {'highpass_freq': 300,
     #                        'lowpass_freq': None,
@@ -2029,7 +2054,9 @@ def recreate_allen_data_BBP():
 
     import analyse_exp_data as axd
 
-    dt = 2**-5  # Will only use every 4th time step of the original waveform (2**-7), see below
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000  # ???
+    # dt = 2**-5  # Will only use every 4th time step of the original waveform (2**-7), see below
     #tstop = 120
 
     fig_folder = join("..", "exp_data", "simulated", "bbp")
@@ -2074,7 +2101,7 @@ def recreate_allen_data_BBP():
         # if pid == 0:
         #cell = find_good_stim_amplitude_BBP(cell_name, dt, tstop)
         cell = return_BBP_neuron(cell_name, 120, dt)
-        cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt_%s.npy" % cell_name))[:, ::4]
+        cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt2_%s.npy" % cell_name))[:, ::4]
         cell.tvec = np.arange(len(cell.imem[0, :])) * dt
         #synapse, cell = insert_current_stimuli(cell, -0.2)
         # cell.simulate(rec_vmem=True, rec_imem=True)
@@ -2203,9 +2230,14 @@ def insert_distributed_synaptic_input(cell, weight_scale):
 def realistic_stimuli_hay():
 
     cell_name = "hay"
-    dt = 2**-7
-    tstop = 2000
-    cutoff = 50
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000 / 4  # ???
+
+    print("dt: ", dt)
+    #dt = 2**-7
+    # target numsteps: 82 * 4 = 328
+    tstop = 2200
+    cutoff = 200
 
     cell = return_hay_cell(tstop, dt)
     insert_distributed_synaptic_input(cell, weight_scale=1)
@@ -2215,16 +2247,19 @@ def realistic_stimuli_hay():
     cell.imem = cell.imem[:, t0:]
     cell.vmem = cell.vmem[:, t0:]
     cell.somav = cell.somav[t0:]
+
     plot_spikes(cell, cell_name)
     plot_single_cell_detectable_volume(cell, "hay", join("..", "model_scan"), fig_suptitle="Hay L5 PC")
-
 
 def realistic_stimuli_hallermann():
 
     cell_name = "hallermann"
-    dt = 2**-7
-    tstop = 2000
-    cutoff = 50
+    # dt = 2**-7
+    cutoff = 200
+    tstop = 2200
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000 / 4  # ???
+
 
     cell = return_hallermann_cell(tstop, dt)
     insert_distributed_synaptic_input(cell, weight_scale=0.1)
@@ -2241,7 +2276,9 @@ def realistic_stimuli_hallermann():
 
 def realistic_stimuli_BBP():
 
-    dt = 2**-7
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000 / 4  # ???
+    # dt = 2**-7
     tstop = 200
     cutoff = 50
     weight_scale = 1
@@ -2294,7 +2331,9 @@ def realistic_stimuli_BBP():
 
 def realistic_stimuli_allen():
 
-    dt = 2**-7
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000 / 4
+    # dt = 2**-7
     tstop = 200
     cutoff = 50
     weight_scale = 1
@@ -2463,6 +2502,12 @@ def plot_spikes(cell, cell_name):
     v_e_filt = elephant.signal_processing.butter(v_e_ufilt, **filt_dict_high_pass)
 
     spike_time_idxs = return_spike_time_idxs(cell.somav)
+    # print(cell.tvec[spike_time_idxs])
+    window_len = 2.7
+    window_t0 = -int(1.27 / cell.dt)
+    window_t1 = int(window_len / cell.dt + 1) + window_t0
+    # print(window_t0 * cell.dt, window_t1 * cell.dt)
+
     if len(spike_time_idxs) == 0:
         print(cell_name, " not spiking!")
         is_spiking = False
@@ -2470,8 +2515,10 @@ def plot_spikes(cell, cell_name):
         #return None
     else:
         is_spiking = True
-        spike_windows = np.array([spike_time_idxs - int(1 / cell.dt),
-                         spike_time_idxs + int(1.7 / cell.dt)]).T
+        spike_windows = np.array([spike_time_idxs + window_t0,
+                                  spike_time_idxs + window_t1]).T
+
+    # print(spike_windows)
     eaps_filt = []
     eaps_ufilt = []
     imems_filt = []
@@ -2495,6 +2542,9 @@ def plot_spikes(cell, cell_name):
 
     v_e_prefilt = electrode.get_transformation_matrix() @ imem_filt_mean * 1e3
     v_e_prefilt2 = electrode.get_transformation_matrix() @ imem_filt2_mean * 1e3
+
+    # print("neg Ve peak time: ", cell.tvec[np.argmin(v_e_prefilt2[0])])
+
     #print(spike_windows)
     eaps_filt = np.array(eaps_filt)
     eaps_ufilt = np.array(eaps_ufilt)
@@ -2504,10 +2554,13 @@ def plot_spikes(cell, cell_name):
                         frameon=False, xticks=[], yticks=[])
     ax_v = fig.add_axes([0.25, 0.6, 0.2, 0.3])
     ax_v_e = fig.add_axes([0.25, 0.1, 0.2, 0.3])
-    ax_eap = fig.add_axes([0.5, 0.1, 0.45, 0.8], xlim=[0, 2.7])
+    ax_eap = fig.add_axes([0.5, 0.1, 0.45, 0.8])
     ax_m.plot(cell.x.T, cell.z.T, c='k')
     ax_v.plot(cell.tvec, cell.somav, 'k')
     ax_m.plot(electrode.x, electrode.z, 'D', c='orange')
+
+    [ax_v.axvline(cell.tvec[t_idx]) for t_idx in spike_time_idxs]
+    [ax_v_e.axvline(cell.tvec[t_idx]) for t_idx in spike_time_idxs]
 
     for elec in range(num_elecs):
         ax_v_e.plot(cell.tvec, v_e_ufilt[elec], 'k', lw=2)
@@ -2527,22 +2580,24 @@ def plot_spikes(cell, cell_name):
     fig_folder = os.path.join("..", "sim_control_figs")
     os.makedirs(fig_folder, exist_ok=True)
     plt.savefig(join(fig_folder, "sim_EAP_%s_one_pole_%s.png" % (cell_name, is_spiking)))
-
+    # plt.show()
 
 if __name__ == '__main__':
 
-    # run_chosen_allen_models()
     # realistic_stimuli_hay()
     # realistic_stimuli_hallermann()
     # realistic_stimuli_BBP()
-    realistic_stimuli_allen()
+    # realistic_stimuli_allen()
+
+    # run_chosen_allen_models()
     # control_sim_allen_cells()
     # recreate_allen_data_axon()
-    #recreate_allen_data_hallermann()
-    #recreate_allen_data_hay()
-    # recreate_allen_data_BBP()
-    # recreate_allen_data()
     # simulate_passing_axon()
-
     # inspect_cells()
     # analyze_eap_amplitudes()
+
+    # recreate_allen_data_hay()
+    # recreate_allen_data_hallermann()
+    recreate_allen_data_BBP()
+    # recreate_allen_data()
+

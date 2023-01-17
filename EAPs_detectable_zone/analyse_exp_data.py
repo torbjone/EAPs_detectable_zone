@@ -24,7 +24,7 @@ waveforms = np.load(join(exp_data_folder, "clusters.waveforms.npy"))
 meta_data = pandas.read_csv(join(exp_data_folder, "clusters.acronym.tsv"), sep='\t')
 depth_sort = np.argsort(z)
 
-print(waveforms.shape)
+# print(waveforms.shape)
 dx = 6
 dz = 6
 
@@ -43,6 +43,8 @@ z_grid = z.reshape(grid_shape)
 
 #tstop = 2
 exp_tvec = np.arange(exp_num_tsteps) * exp_dt
+
+print(exp_tvec)
 #print("Num elecs: ", num_elecs)
 
 #print(x.shape)
@@ -91,9 +93,10 @@ def plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None, acrony
         plot_superimposed_sec_type(cell, ax1)
 
     eap_norm = np.max(np.abs(waveform))
-
     max_peak_idxs = np.argmax(np.abs(waveform), axis=0)
     neg_peak = np.min(waveform, axis=0)
+    max_elec_peak = np.argmax(np.max(np.abs(waveform), axis=0))
+    max_t_idx = np.argmax(np.abs(waveform[:, max_elec_peak]))
 
     img = ax3.imshow(waveform[:, depth_sort].T, cmap="bwr",
                vmax=eap_norm, vmin=-eap_norm, origin="lower",
@@ -130,6 +133,8 @@ def plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None, acrony
     ax4.axhline(-detection_threshold, c='cyan', ls="--")
     ax4.text(0.1, -detection_threshold*1.05,
              "detection\nthreshold", c="cyan", va="top")
+    ax4.axvline(tvec[max_t_idx], lw=0.5, c='gray', ls=":")
+    ax4.text(tvec[max_t_idx] + 0.1, waveform[max_t_idx, max_elec_peak], tvec[max_t_idx])
 
     ax1.plot([50, 50], [200, 200 + eap_norm * y_norm], c='k')
     ax1.text(52, 200 + eap_norm * y_norm / 2, "{:1.1f} µV".format(eap_norm),
@@ -143,6 +148,7 @@ def plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None, acrony
     ax2.text(47, 30 * dz + dz / 2, "{:d} µm".format(dz),
              va="center", ha="left", color="gray")
 
+    ax1.plot(x[max_elec_peak], z[max_elec_peak], 'ro')
     ax1.plot([1 * dx, 1 * dx + dx], [-2, -2], c='gray')
     ax1.text(1 * dx + dx / 2, -3, "{:d} µm".format(dx),
              va="top", ha="center", color='gray')
@@ -1293,9 +1299,9 @@ def plot_waveform_feature_separability():
 
 
 if __name__ == '__main__':
-    # plot_all_waveforms()
+    plot_all_waveforms()
     # analyse_pca_exp_data()
-    analyse_pca_simulated_data()
+    # analyse_pca_simulated_data()
     # sim_waveform_collection_pca()
     # plot_spike_features_waveform_collection()
     # plot_spike_features_waveform_collection_sim()
