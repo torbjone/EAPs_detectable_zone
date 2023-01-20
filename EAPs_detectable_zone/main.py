@@ -9,7 +9,7 @@ import neuron
 import scipy.signal as ss
 import LFPy
 import matplotlib
-# matplotlib.use("AGG")
+matplotlib.use("AGG")
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection, LineCollection
 import elephant
@@ -1755,7 +1755,7 @@ def recreate_allen_data():
 
         # pid = os.fork()
         # if pid == 0:
-
+        #
         model_folder = join(cell_models_folder, "allen_models", "neuronal_model_%s" % model_id)
         cell = return_allen_cell_model(model_folder, dt, 120)
 
@@ -1805,7 +1805,7 @@ def recreate_allen_data():
                 soma_distance_from_plane.append(cell.y[0].mean())
                 counter += 1
 
-                # os._exit(0)
+            #     os._exit(0)
             # else:
             #     os.waitpid(pid, 0)
     np.save(join(fig_folder, "..", "waveforms_sim_allen.npy"), waveform_collection)
@@ -2134,8 +2134,8 @@ def recreate_allen_data_BBP():
             eap_ = eaps.T#[:, t_window[0]:t_window[1]]
             if np.max(np.abs(eap_)) > 30:
                 fig_name = "sim_BBP_%s_%d_prefilt_downsampled_%d" % (cell_name, trial_idx, counter)
-                # axd.plot_NPUltraWaveform(eap_, t_, fig_name,
-                #                          fig_folder, cell)
+                axd.plot_NPUltraWaveform(eap_, t_, fig_name,
+                                         fig_folder, cell)
                 waveform_collection.append(eap_)
                 cell_type_list.append(cell_name)
                 soma_distance_from_plane.append(cell.y[0].mean())
@@ -2581,6 +2581,7 @@ def plot_spikes(cell, cell_name):
     os.makedirs(fig_folder, exist_ok=True)
     plt.savefig(join(fig_folder, "sim_EAP_%s_one_pole_%s.png" % (cell_name, is_spiking)))
     # plt.show()
+
 
 if __name__ == '__main__':
 

@@ -44,7 +44,7 @@ z_grid = z.reshape(grid_shape)
 #tstop = 2
 exp_tvec = np.arange(exp_num_tsteps) * exp_dt
 
-print(exp_tvec)
+#print(exp_tvec)
 #print("Num elecs: ", num_elecs)
 
 #print(x.shape)
@@ -495,15 +495,15 @@ def analyse_waveform_collection(waveforms, tvec, name, celltypes_list=None):
     dt = tvec[1] - tvec[0]
 
     color_list = []
-    acronym_subtype = "VISp5"
+    acronym_subtype = ""#"VISp5"
     for neuron_id in range(waveforms.shape[0]):
 
-        acronym = meta_data.acronym[neuron_id]
-        level = meta_data.level6[neuron_id]
+        # acronym = meta_data.acronym[neuron_id]
+        # level = meta_data.level6[neuron_id]
 
-        if not acronym == acronym_subtype:
-            print(f"Skipping {neuron_id} because it is {acronym}")
-            continue
+        # if not acronym == acronym_subtype:
+        #     print(f"Skipping {neuron_id} because it is {acronym}")
+        #     continue
 
         waveform = waveforms[neuron_id]
         #max_neg_peak = np.min(waveform, axis=0)
@@ -572,8 +572,8 @@ def analyse_waveform_collection(waveforms, tvec, name, celltypes_list=None):
 
 
 def analyse_simulated_waveform_collections():
-    sim_dt = 2**-5
-    sim_names = ["hallermann", "allen", "hay", "BBP"][1:2]
+    sim_dt = exp_dt
+    sim_names = ["hallermann", "allen", "hay", "BBP"][:]
     for sim_name in sim_names:
         print(sim_name)
         sim_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
@@ -584,7 +584,7 @@ def analyse_simulated_waveform_collections():
         print(sim_waveforms.shape)
         sim_num_tsteps = sim_waveforms.shape[1]
         sim_tvec = np.arange(sim_num_tsteps) * sim_dt
-        analyse_waveform_collection(sim_waveforms, sim_tvec, "sim_%s_data" % sim_name, sim_waveforms_celltypes)
+        analyse_waveform_collection(sim_waveforms, sim_tvec, "sim_%s_data_" % sim_name, sim_waveforms_celltypes)
 
 
 def plot_all_waveforms():
@@ -1299,7 +1299,7 @@ def plot_waveform_feature_separability():
 
 
 if __name__ == '__main__':
-    plot_all_waveforms()
+    # plot_all_waveforms()
     # analyse_pca_exp_data()
     # analyse_pca_simulated_data()
     # sim_waveform_collection_pca()
@@ -1309,7 +1309,7 @@ if __name__ == '__main__':
     # pca_waveform_collection_combined()
     # plot_waveform_feature_separability()
     # analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
-    # analyse_simulated_waveform_collections()
+    analyse_simulated_waveform_collections()
     # animate_NPUltraWaveform(waveforms[54], exp_tvec, "anim_exp_54", join(fig_folder, "..", "anim"))
     # animate_sim_waveform()
 
