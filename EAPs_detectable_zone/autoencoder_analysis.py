@@ -244,7 +244,6 @@ def investigate_simulated_data():
 
             ax.scatter(feature_arrays[key], ae_z[:, latent_idx], c='k', s=2)
 
-
     plt.savefig("hay_spikes_investigate.png", dpi=300)
 
 

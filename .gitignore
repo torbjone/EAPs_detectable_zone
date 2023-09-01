@@ -2,3 +2,4 @@
 EAPs_detectable_zone/cell_models/_neuronal_model_*
 EAPs_detectable_zone/cell_models/neuronal_model_*
 x86_64
+*.png

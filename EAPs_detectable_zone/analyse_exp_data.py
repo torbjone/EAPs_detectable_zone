@@ -50,10 +50,10 @@ exp_tvec = np.arange(exp_num_tsteps) * exp_dt
 #print(x.shape)
 #print(spike_times.shape)
 #print(spike_clusters.shape)
-#print(waveforms.shape)
+print(waveforms.shape)
 
-
-def plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None, acronym=None, level=None):
+def plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None,
+                         acronym=None, level=None):
 
     xlim = [-10, np.max(np.abs(x)) + 10]
     ylim = [-10, np.max(np.abs(z)) + 10]
@@ -162,6 +162,51 @@ def plot_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None, acrony
     mark_subplots([ax3, ax4], ["C", "D"], xpos=0.0, ypos=1.03)
     fig.savefig(join(fig_folder, "waveform_%s.png" % fig_name), dpi=150)
 
+
+def analyze_elec_size_SNR():
+    spike_idx = 8
+    waveform = waveforms[spike_idx]
+    tvec = exp_tvec
+
+    eap_norm = np.max(np.abs(waveform))
+    max_peak_idxs = np.argmax(np.abs(waveform), axis=0)
+    neg_peak = np.min(waveform, axis=0)
+    max_elec_peak = np.argmax(np.max(np.abs(waveform), axis=0))
+    max_t_idx = np.argmax(np.abs(waveform[:, max_elec_peak]))
+
+    elec_dist_from_max = np.sqrt((x - x[max_elec_peak])**2 + (z - z[max_elec_peak])**2)
+
+    print(waveform.shape)
+
+    xlim = [-10, np.max(np.abs(x)) + 10]
+    ylim = [-10, np.max(np.abs(z)) + 10]
+
+    plt.close("all")
+    fig = plt.figure(figsize=[16, 9])
+    ax1 = fig.add_axes([0.01, 0.01, 0.12, 0.98], aspect=1, xlim=xlim, ylim=ylim,
+                       xticks=[], yticks=[], frameon=False)
+    ax_snr = fig.add_axes([0.15, 0.8, 0.12, 0.15],)
+
+    ax4 = fig.add_axes([0.63, 0.1, 0.35, 0.86], xlabel="time (ms)",
+                       ylabel="µV")
+
+    ax_snr.plot(elec_dist_from_max, np.std(waveform, axis=0))
+
+    ax1.scatter(x, z, c='gray', s=1)
+
+    x_norm = 0.8 * dx / tvec[-1]
+    y_norm = 0.9 * dz / eap_norm
+    eap_clr = lambda eap_min: plt.cm.viridis(0.0 + eap_min / np.min(neg_peak))
+    y_norm = 0.9 * dz / eap_norm
+    eap_clr = lambda eap_min: plt.cm.viridis(0.0 + eap_min / np.min(neg_peak))
+    for elec_idx in range(num_elecs):
+        x_ = x[elec_idx] + tvec * x_norm
+        y_ = z[elec_idx] + waveform[:, elec_idx] * y_norm
+        ax1.plot(x_, y_, lw=1, c='k', zorder=10)
+        ax4.plot(tvec, waveform[:, elec_idx], zorder=-neg_peak[elec_idx],
+                 c=eap_clr(neg_peak[elec_idx]))
+
+    plt.savefig(f"elec_size_SNR_idx:{spike_idx}.png")
 
 def extract_spike_features(waveform, tvec, fig_name, fig_folder,
                            plot_it=True, soma_dist_from_plane=None):
@@ -427,7 +472,6 @@ def animate_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None):
     mark_subplots([ax3, ax4], ["C", "D"], xpos=0.0, ypos=1.03)
     os.makedirs(fig_folder, exist_ok=True)
 
-
     t_idx = 0
     lax3 = ax3.axvline(tvec[t_idx], ls='--', c='gray')
     lax4 = ax4.axvline(tvec[t_idx], ls='--', c='gray')
@@ -588,14 +632,17 @@ def analyse_simulated_waveform_collections():
 
 
 def plot_all_waveforms():
-
+    fig_folder = join(exp_data_folder, "figures_VISp")
+    os.makedirs(fig_folder, exist_ok=True)
     for neuron_id in range(num_neurons):
         print(neuron_id, "/", num_neurons)
         fig_name = "exp_data_%d" % neuron_id
         waveform = waveforms[neuron_id]
         acronym = meta_data.acronym[neuron_id]
         level = meta_data.level6[neuron_id]
-        plot_NPUltraWaveform(waveform, exp_tvec, fig_name, fig_folder, acronym=acronym, level=level)
+        level7 = meta_data.level7[neuron_id]
+        if 'VISp' in acronym:
+            plot_NPUltraWaveform(waveform, exp_tvec, fig_name, fig_folder, acronym=acronym, level=level)
 
 
 def animate_sim_waveform():
@@ -1298,8 +1345,12 @@ def plot_waveform_feature_separability():
     plt.savefig(join(fig_folder, "feature_separability_%s.png" % fig_name), dpi=150)
 
 
+
+
+
 if __name__ == '__main__':
     # plot_all_waveforms()
+    analyze_elec_size_SNR()
     # analyse_pca_exp_data()
     # analyse_pca_simulated_data()
     # sim_waveform_collection_pca()
@@ -1309,7 +1360,7 @@ if __name__ == '__main__':
     # pca_waveform_collection_combined()
     # plot_waveform_feature_separability()
     # analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
-    analyse_simulated_waveform_collections()
+    # analyse_simulated_waveform_collections()
     # animate_NPUltraWaveform(waveforms[54], exp_tvec, "anim_exp_54", join(fig_folder, "..", "anim"))
     # animate_sim_waveform()
 
