@@ -15,16 +15,21 @@ from matplotlib.collections import PolyCollection, LineCollection
 import elephant
 import pandas as pd
 from plotting_convention import mark_subplots, simplify_axes
+import cell_models
 
+root_folder = os.path.abspath(join(os.path.dirname(__file__), '..'))
 
-cell_models_folder = join("cell_models")
+cell_models_folder = join(os.path.dirname(__file__), "cell_models")
+
+print(cell_models_folder)
+
 sigma = 0.3  # S/m
 
 cell_rot_dict = {515175253: [-np.pi/2 * 0.9, np.pi/10, 0],
                  488462783: [-np.pi/3, -np.pi/4, np.pi * 0.8]}
 np.random.seed(1234)
 
-imem_eap_folder = join("..", "imem_EAPs")
+imem_eap_folder = join(root_folder, "imem_EAPs")
 os.makedirs(imem_eap_folder, exist_ok=True)
 hay_folder = join(cell_models_folder, "L5bPCmodelsEH")
 bbp_folder = join(cell_models_folder, "bbp_models")
@@ -1972,6 +1977,91 @@ def recreate_allen_data_hallermann():
     np.save(join(fig_folder, "..", "waveforms_sim_%s.npy" % cell_name), waveform_collection)
     np.save(join(fig_folder, "..", "waveforms_sim_hallermann_soma_distance.npy"), soma_distance_from_plane)
 
+def run_hallermann_example():
+
+    cell_name = "hallermann"
+    import analyse_exp_data as axd
+    #dt = 1 / sampling_rate * 1000   # ???
+
+    # tstop = 120
+    # filt_dict_high_pass = {'highpass_freq': 300,
+    #                        'lowpass_freq': None,
+    #                        'order': 1,
+    #                        'filter_function': 'filtfilt',
+    #                        'fs': 1 / (dt / 1000),
+    #                        'axis': -1
+    #                        }
+    fig_folder = join("..", "exp_data", "simulated", cell_name)
+    os.makedirs(fig_folder, exist_ok=True)
+
+    cutoff = 200
+    tstop = 100
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000 / 1  # ???
+
+    cell = return_hallermann_cell(tstop, dt)
+    # insert_distributed_synaptic_input(cell, weight_scale=0.1)
+    # cell.simulate(rec_vmem=True, rec_imem=True)
+
+    # t0 = np.argmin(np.abs(cell.tvec - 0))
+    # t0 = np.argmin(np.abs(cell.tvec - 89.5))
+    # t1 = np.argmin(np.abs(cell.tvec - 93))
+    # t1 = np.argmin(np.abs(cell.tvec - 93))
+
+    # cell.imem = cell.imem[:, t0:t1]
+    # cell.vmem = cell.vmem[:, t0:t1]
+    # cell.tvec = cell.tvec[t0:t1] - cell.tvec[t0]
+
+    #synapse, cell = insert_current_stimuli(cell, -0.4)
+    #cell.simulate(rec_vmem=True, rec_imem=True)
+    cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt2_%s.npy" % cell_name))[:, ::4]
+    cell.tvec = np.arange(len(cell.imem[0, :])) * dt
+    #print(np.max(cell.somav))
+    #spiketime_idx = return_spiketime_idx(cell)
+    #t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
+    data_folder = join("..", "exp_data", "NPUltraWaveforms")
+    elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
+    elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
+
+    elec_params = {
+        'sigma': sigma,  # Saline bath conductivity
+        'x': elecs_x,  # electrode requires 1d vector of positions
+        'y': np.zeros(len(elecs_x)),
+        'z': elecs_z,
+        'r': 2.5,
+        'n': 20,
+        'N': [0, 1, 0],
+        "method": "root_as_point",
+    }
+
+    np.random.seed(12345 )
+    idx_ = cell.get_closest_idx(z=-2050, y=00, x=35, section="my")
+    cell.set_rotation(x=0,#np.pi/10,
+                      y=0,
+                      z=-np.pi/3)
+
+    cell.set_rotation(x=np.pi/6)
+    cell.set_pos(x=29.7,
+                 y=-382.4,
+                 z=647.6)
+
+    # idx_ = np.argmax(cell.z.mean(axis=1))
+
+
+    print(cell.x[idx_].mean(), cell.y[idx_].mean(), cell.z[idx_].mean(),)
+
+    electrode = LFPy.RecExtElectrode(cell, **elec_params)
+    eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
+    #eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
+
+
+    t_ = cell.tvec#cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
+    eap_ = eaps.T#eaps[:, t_window[0]:t_window[1]].T
+
+    fig_name = "asim_example_%s___" % (cell_name)
+    axd.plot_NPUltraWaveform(eap_, t_, fig_name,
+                             fig_folder, cell)
+
 
 def recreate_allen_data_axon():
 
@@ -2059,7 +2149,7 @@ def recreate_allen_data_BBP():
     # dt = 2**-5  # Will only use every 4th time step of the original waveform (2**-7), see below
     #tstop = 120
 
-    fig_folder = join("..", "exp_data", "simulated", "bbp")
+    fig_folder = join(root_folder, "exp_data", "simulated", "bbp")
     os.makedirs(fig_folder, exist_ok=True)
     num_trials = 50
 
@@ -2075,7 +2165,7 @@ def recreate_allen_data_BBP():
     #                        'axis': -1
     #                        }
     cell_names = os.listdir(bbp_folder)
-    data_folder = join("..", "exp_data", "NPUltraWaveforms")
+    data_folder = join(root_folder, "exp_data", "NPUltraWaveforms")
 
     elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
     elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
@@ -2441,31 +2531,121 @@ def control_sim_allen_cells():
                     weight_scale_ *= 1.5
 
 
-def simulate_passing_axon():
+def simulate_passing_axon(axon_type, trial_idx):
 
-    dt = 2**-7
-    tstop = 15
-    cutoff = 0
-    axon_type = "myelinated"
+    import analyse_exp_data as axd
+    cutoff = 20
+    tstop = 5
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000 / 4  # ???
+
+
+    np.random.seed(1542323 + trial_idx)
+    #axon_type = "unmyelinated"
     cell_name = "%s_axon" % axon_type
-    from ECSbook_simcode import hallermann_axon_model as ha_ax
+    from cell_models import hallermann_axon_model as ha_ax
     if axon_type == "unmyelinated":
-        cell = ha_ax.return_constructed_unmyelinated_axon(dt, tstop, 0, 1, axon_diameter=None)
+        cell = ha_ax.return_constructed_unmyelinated_axon(dt, tstop, 4, 1, axon_diameter=None)
     elif axon_type == "myelinated":
-        cell = ha_ax.return_constructed_myelinated_axon(dt, tstop, 0, 1, axon_diameter=None)
+        cell = ha_ax.return_constructed_myelinated_axon(dt, tstop, 4, 1, axon_diameter=None)
+    elif axon_type == "combo":
+        cell = ha_ax.return_constructed_combo_axon(dt, tstop, 4, 1, axon_diameter=None)
+       
     else:
         raise RuntimeError("axon_type not recognized")
 
-    insert_current_stimuli(cell, -0.03)
-    cell.set_pos(z=-200)
+    fig_folder = join(root_folder, "exp_data", "simulated", cell_name)
+    os.makedirs(fig_folder, exist_ok=True)
+
+    syn, cell = insert_current_stimuli(cell, -0.04)
+    #cell.set_pos(x=np.random.uniform(0, 30), y=np.random.uniform(0, 10), z=np.random.uniform(-500, -800))
+    #cell.set_pos(x=30, y=0, z=-600)
+    
+    cell.set_rotation(x=0,#np.random.uniform(0, 2 * np.pi), 
+                      #y=np.random.uniform(0, 2 * np.pi), 
+                      z=np.random.uniform(0, 2 * np.pi))
+    
+    cell.set_pos(x=np.random.uniform(-0,48) - cell.x[-1].mean(), 
+                 y=np.random.uniform(0, 5)-cell.y[-1].mean(), 
+                 z=np.random.uniform(-100,100)-700-cell.z[-1].mean())
+    
+
     cell.simulate(rec_vmem=True, rec_imem=True)
 
-    t0 = np.argmin(np.abs(cell.tvec - cutoff))
-    cell.tvec = cell.tvec[t0:] - cell.tvec[t0]
-    cell.imem = cell.imem[:, t0:]
-    cell.vmem = cell.vmem[:, t0:]
-    cell.somav = cell.vmem[0, t0:]
-    plot_spikes(cell, cell_name)
+    if axon_type == "unmyelinated":
+         # Unmyelinated:
+        t0 = np.argmin(np.abs(cell.tvec - 2.0))
+        t1 = np.argmin(np.abs(cell.tvec - 4.73))
+    elif axon_type == "myelinated":
+        # Myelinated:
+        t0 = np.argmin(np.abs(cell.tvec - 0.15))
+        t1 = np.argmin(np.abs(cell.tvec - 2.853))
+    elif axon_type == "combo":
+         # Myelinated:
+        t0 = np.argmin(np.abs(cell.tvec - 0.15))
+        t1 = np.argmin(np.abs(cell.tvec - 2.853))
+    else:
+        raise RuntimeError("axon_type not recognized.")       
+
+    cell.dt *= 4
+    cell.tvec = cell.tvec[t0:t1] - cell.tvec[t0]
+    cell.imem = cell.imem[:, t0:t1]
+    cell.vmem = cell.vmem[:, t0:t1]
+    cell.somav = cell.vmem[0, t0:t1]
+
+    cell.tvec = cell.tvec[::4]
+    cell.imem = cell.imem[:, ::4]
+    cell.vmem = cell.vmem[:, ::4]
+    cell.somav = cell.vmem[0, ::4]
+   
+
+
+    #synapse, cell = insert_current_stimuli(cell, -0.4)
+    #cell.simulate(rec_vmem=True, rec_imem=True)
+    #cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt2_%s.npy" % cell_name))[:, ::4]
+    #cell.tvec = np.arange(len(cell.imem[0, :])) * dt
+    #print(np.max(cell.somav))
+    #spiketime_idx = return_spiketime_idx(cell)
+    #t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
+    data_folder = join(root_folder, "exp_data", "NPUltraWaveforms")
+    elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
+    elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
+
+    elec_params = {
+        'sigma': sigma,  # Saline bath conductivity
+        'x': elecs_x,  # electrode requires 1d vector of positions
+        'y': np.zeros(len(elecs_x)),
+        'z': elecs_z,
+        'r': 2.5,
+        'n': 20,
+        'N': [0, 1, 0],
+        "method": "root_as_point",
+    }
+
+    np.random.seed(12345 )
+
+    # idx_ = np.argmax(cell.z.mean(axis=1))
+    idx_ = -1
+
+    print(cell.x[idx_].mean(), cell.y[idx_].mean(), cell.z[idx_].mean(),)
+
+    electrode = LFPy.RecExtElectrode(cell, **elec_params)
+    eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
+    #eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
+
+
+    t_ = cell.tvec#cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
+    eap_ = eaps.T#eaps[:, t_window[0]:t_window[1]].T
+
+    fig_name = "dsim_example_%s_%d" % (cell_name, trial_idx)
+    axd.plot_NPUltraWaveform(eap_, t_, fig_name,
+                             fig_folder, cell)
+
+
+
+    del cell, electrode, syn
+
+    # plot_spikes(cell, cell_name)
 
 
 def plot_spikes(cell, cell_name):
@@ -2593,12 +2773,18 @@ if __name__ == '__main__':
     # run_chosen_allen_models()
     # control_sim_allen_cells()
     # recreate_allen_data_axon()
-    # simulate_passing_axon()
+    for trial_idx in range(100):
+        simulate_passing_axon("combo", trial_idx)
+        simulate_passing_axon("myelinated", trial_idx)
+        simulate_passing_axon("unmyelinated", trial_idx)
+    #simulate_passing_axon(1)
     # inspect_cells()
     # analyze_eap_amplitudes()
 
     # recreate_allen_data_hay()
     # recreate_allen_data_hallermann()
-    recreate_allen_data_BBP()
+    # recreate_allen_data_BBP()
     # recreate_allen_data()
+
+    # run_hallermann_example()
 

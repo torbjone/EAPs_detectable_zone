@@ -8,8 +8,11 @@ import pandas
 from sklearn.decomposition import PCA
 from sklearn import manifold
 
-exp_data_folder = join("..", "exp_data", "NPUltraWaveforms")
-sim_data_folder = join("..", "exp_data", "simulated")
+root_folder = os.path.abspath(join(os.path.dirname(__file__), '..'))
+
+
+exp_data_folder = join(root_folder, "exp_data", "NPUltraWaveforms")
+sim_data_folder = join(root_folder, "exp_data", "simulated")
 
 fig_folder = join(exp_data_folder, "figures")
 os.makedirs(fig_folder, exist_ok=True)
@@ -413,7 +416,7 @@ def animate_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None):
     max_peak_idxs = np.argmax(np.abs(waveform), axis=0)
     neg_peak = np.min(waveform, axis=0)
 
-    img = ax3.imshow(waveform[:, depth_sort].T, cmap="bwr",
+    img = ax3.imshow(waveform[:, depth_sort].T, cmap="bwr_r",
                vmax=eap_norm, vmin=-eap_norm, origin="lower",
                extent=[0, tvec[-1], 0, np.max(z)])
     ax3.axis("auto")
@@ -477,7 +480,7 @@ def animate_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None):
     lax4 = ax4.axvline(tvec[t_idx], ls='--', c='gray')
     time_marker = ax2.text(1, ylim[1] - 2.2, "t = {:1.2f} ms".format(tvec[t_idx]))
     img2 = ax2.contourf(x_grid, z_grid, waveform[t_idx, :].reshape(grid_shape), levels=25,
-                    cmap="bwr", vmin=-eap_norm, vmax=eap_norm)
+                    cmap="bwr_r", vmin=-eap_norm, vmax=eap_norm)
 
     for t_idx in range(len(tvec)):
         print(t_idx + 1, len(tvec))
@@ -487,7 +490,7 @@ def animate_NPUltraWaveform(waveform, tvec, fig_name, fig_folder, cell=None):
             coll.remove()
 
         img2 = ax2.contourf(x_grid, z_grid, waveform[t_idx, :].reshape(grid_shape), levels=25,
-                                cmap="bwr", vmin=-eap_norm, vmax=eap_norm)
+                                cmap="bwr_r", vmin=-eap_norm, vmax=eap_norm)
         time_marker.set_text("t = {:1.2f} ms".format(tvec[t_idx]))
         fig.savefig(join(fig_folder, "waveform_%s_%04d.png" % (fig_name, t_idx)), dpi=150)
 
@@ -646,9 +649,11 @@ def plot_all_waveforms():
 
 
 def animate_sim_waveform():
-    sim_dt = 2**-5
+    sampling_rate = 30000  # Hz
+    sim_dt = 1 / sampling_rate * 1000  # ???
+
     sim_name = ["hallermann", "allen", "hay", "BBP"][-1]
-    waveform_idx = 5987
+    waveform_idx = 15771
     sim_waveforms = np.load(join(sim_data_folder, "waveforms_sim_%s.npy" % sim_name))
     sim_num_tsteps = sim_waveforms.shape[1]
     sim_tvec = np.arange(sim_num_tsteps) * sim_dt
@@ -1350,7 +1355,7 @@ def plot_waveform_feature_separability():
 
 if __name__ == '__main__':
     # plot_all_waveforms()
-    analyze_elec_size_SNR()
+    # analyze_elec_size_SNR()
     # analyse_pca_exp_data()
     # analyse_pca_simulated_data()
     # sim_waveform_collection_pca()
@@ -1362,5 +1367,5 @@ if __name__ == '__main__':
     # analyse_waveform_collection(waveforms, exp_tvec, "exp_data")
     # analyse_simulated_waveform_collections()
     # animate_NPUltraWaveform(waveforms[54], exp_tvec, "anim_exp_54", join(fig_folder, "..", "anim"))
-    # animate_sim_waveform()
+    animate_sim_waveform()
 
