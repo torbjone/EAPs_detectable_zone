@@ -21,6 +21,7 @@ os.makedirs(fig_folder, exist_ok=True)
 x = np.load(join(exp_data_folder, "channels.xcoords.npy"))[:, 0]
 z = np.load(join(exp_data_folder, "channels.ycoords.npy"))[:, 0]
 
+
 spike_times = np.load(join(exp_data_folder, "spikes.times.npy"))
 spike_clusters = np.load(join(exp_data_folder, "spikes.clusters.npy"))
 waveforms = np.load(join(exp_data_folder, "clusters.waveforms.npy"))
@@ -43,7 +44,7 @@ grid_shape = (int(num_elecs / 8), 8)
 
 x_grid = x.reshape(grid_shape)
 z_grid = z.reshape(grid_shape)
-
+print(x_grid.shape)
 #tstop = 2
 exp_tvec = np.arange(exp_num_tsteps) * exp_dt
 

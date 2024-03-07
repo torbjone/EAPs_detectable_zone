@@ -1460,7 +1460,7 @@ def plot_cell_secs(cell, ax_m_side, ax_m_top):
     return cell_clr_list
 
 
-def plot_superimposed_sec_type(cell, ax):
+def plot_superimposed_sec_type(cell, ax, make_legend=False):
 
     possible_names = ["Myelin", "axon", "Unmyelin", "Node", "node", "my",
                       "hilloc",
@@ -1504,19 +1504,22 @@ def plot_superimposed_sec_type(cell, ax):
                 cell_clr_list.append(c)
 
                 ax.plot(cell.x[idx], cell.z[idx], '-',
-                      c=c, clip_on=True, lw=1, zorder=zorder)
+                      c=c, clip_on=True, lw=1.5, zorder=zorder)
                 if "node" in sec_name:
-                    ax.plot(cell.x[idx].mean(), cell.z[idx].mean(), 'o', ms=3, c=c)
+                    ax.plot(cell.x[idx].mean(), cell.z[idx].mean(), '.', ms=3, c=c,
+                            zorder=10)
 
-    # lines = []
-    # line_names = []
-    # for name in used_clrs:
-    #     l, = ax.plot([0], [0], lw=2, c=sec_clrs[name])
-    #     #if not "soma" in name:
-    #     lines.append(l)
-    #     line_names.append(legend_dict[name])
-    # ax.legend(lines, line_names, frameon=False, fontsize=10,
-    #                 loc=(-0.45, -0.15), ncol=1)
+    if make_legend:
+
+        la, = ax.plot([], [], 'o', ms=3, c=sec_clrs["node"])
+        lb, = ax.plot([], [], '-', lw=1.5, c=sec_clrs["my"])
+        ls, = ax.plot([], [], 'y*', ms=8)
+
+        ax.legend([la, lb, ls], [legend_dict["node"],
+                                 legend_dict["my"], "stimuli"],
+                  frameon=False, fontsize=8,
+                        loc=(-1.9, -0.19), ncol=1)
+
     return cell_clr_list
 
 
@@ -2534,23 +2537,31 @@ def control_sim_allen_cells():
 def simulate_passing_axon(axon_type, trial_idx):
 
     import analyse_exp_data as axd
-    cutoff = 20
     tstop = 5
     sampling_rate = 30000  # Hz
     dt = 1 / sampling_rate * 1000 / 4  # ???
 
+    num_splits = 0
 
     np.random.seed(1542323 + trial_idx)
     #axon_type = "unmyelinated"
     cell_name = "%s_axon" % axon_type
     from cell_models import hallermann_axon_model as ha_ax
     if axon_type == "unmyelinated":
-        cell = ha_ax.return_constructed_unmyelinated_axon(dt, tstop, 4, 1, axon_diameter=None)
+        cell = ha_ax.return_constructed_unmyelinated_axon(dt, tstop, num_splits,
+                                                          1,
+                                                          axon_diameter=None)
     elif axon_type == "myelinated":
-        cell = ha_ax.return_constructed_myelinated_axon(dt, tstop, 4, 1, axon_diameter=None)
+        cell = ha_ax.return_constructed_myelinated_axon(dt, tstop, num_splits,
+                                                        1,
+                                                        axon_diameter=None)
     elif axon_type == "combo":
-        cell = ha_ax.return_constructed_combo_axon(dt, tstop, 4, 1, axon_diameter=None)
-       
+        cell = ha_ax.return_constructed_combo_axon(dt, tstop, num_splits,
+                                                   1,
+                                                   axon_diameter=None)
+    elif axon_type == "unmyelinated_segment":
+        cell = ha_ax.return_constructed_unmyelinated_segment_axon(dt, tstop,
+                                                                  axon_diameter=None)
     else:
         raise RuntimeError("axon_type not recognized")
 
@@ -2558,16 +2569,14 @@ def simulate_passing_axon(axon_type, trial_idx):
     os.makedirs(fig_folder, exist_ok=True)
 
     syn, cell = insert_current_stimuli(cell, -0.04)
-    #cell.set_pos(x=np.random.uniform(0, 30), y=np.random.uniform(0, 10), z=np.random.uniform(-500, -800))
-    #cell.set_pos(x=30, y=0, z=-600)
-    
+
     cell.set_rotation(x=0,#np.random.uniform(0, 2 * np.pi), 
                       #y=np.random.uniform(0, 2 * np.pi), 
                       z=np.random.uniform(0, 2 * np.pi))
     
     cell.set_pos(x=np.random.uniform(-0,48) - cell.x[-1].mean(), 
                  y=np.random.uniform(0, 5)-cell.y[-1].mean(), 
-                 z=np.random.uniform(-100,100)-700-cell.z[-1].mean())
+                 z=np.random.uniform(-100,100)-600-cell.z[-1].mean())
     
 
     cell.simulate(rec_vmem=True, rec_imem=True)
@@ -2578,12 +2587,20 @@ def simulate_passing_axon(axon_type, trial_idx):
         t1 = np.argmin(np.abs(cell.tvec - 4.73))
     elif axon_type == "myelinated":
         # Myelinated:
+        # t0 = np.argmin(np.abs(cell.tvec - 0.15))
+        # t1 = np.argmin(np.abs(cell.tvec - 2.853))
         t0 = np.argmin(np.abs(cell.tvec - 0.15))
         t1 = np.argmin(np.abs(cell.tvec - 2.853))
     elif axon_type == "combo":
          # Myelinated:
         t0 = np.argmin(np.abs(cell.tvec - 0.15))
         t1 = np.argmin(np.abs(cell.tvec - 2.853))
+    elif axon_type == "unmyelinated_segment":
+         # Myelinated:
+        # t0 = np.argmin(np.abs(cell.tvec - 0.15))
+        # t1 = np.argmin(np.abs(cell.tvec - 2.853))
+        t0 = np.argmin(np.abs(cell.tvec - 1.))
+        t1 = np.argmin(np.abs(cell.tvec - 2.))
     else:
         raise RuntimeError("axon_type not recognized.")       
 
@@ -2599,14 +2616,6 @@ def simulate_passing_axon(axon_type, trial_idx):
     cell.somav = cell.vmem[0, ::4]
    
 
-
-    #synapse, cell = insert_current_stimuli(cell, -0.4)
-    #cell.simulate(rec_vmem=True, rec_imem=True)
-    #cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt2_%s.npy" % cell_name))[:, ::4]
-    #cell.tvec = np.arange(len(cell.imem[0, :])) * dt
-    #print(np.max(cell.somav))
-    #spiketime_idx = return_spiketime_idx(cell)
-    #t_window = [spiketime_idx - int(1 / dt), spiketime_idx + int(1.7 / dt)]
     data_folder = join(root_folder, "exp_data", "NPUltraWaveforms")
     elecs_x = np.load(join(data_folder, "channels.xcoords.npy"))[:, 0]
     elecs_z = np.load(join(data_folder, "channels.ycoords.npy"))[:, 0]
@@ -2631,16 +2640,13 @@ def simulate_passing_axon(axon_type, trial_idx):
 
     electrode = LFPy.RecExtElectrode(cell, **elec_params)
     eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
-    #eaps = elephant.signal_processing.butter(eaps, **filt_dict_high_pass)
 
+    t_ = cell.tvec
+    eap_ = eaps.T
 
-    t_ = cell.tvec#cell.tvec[t_window[0]:t_window[1]] - cell.tvec[t_window[0]]
-    eap_ = eaps.T#eaps[:, t_window[0]:t_window[1]].T
-
-    fig_name = "dsim_example_%s_%d" % (cell_name, trial_idx)
+    fig_name = "esim_example_%s_%d" % (cell_name, trial_idx)
     axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                              fig_folder, cell)
-
 
 
     del cell, electrode, syn
@@ -2763,6 +2769,182 @@ def plot_spikes(cell, cell_name):
     # plt.show()
 
 
+def simulate_schematic_axon(axon_type):
+
+    tstop = 5
+    sampling_rate = 30000  # Hz
+    dt = 1 / sampling_rate * 1000 / 4  # ???
+
+    num_splits = 0
+
+    np.random.seed(1542323)
+    # axon_type = "unmyelinated"
+    cell_name = "%s_axon" % axon_type
+    axon_diam_scaling = 1.0
+    my_length = 25
+    axon_length = 1000
+
+    from cell_models import hallermann_axon_model as ha_ax
+    if axon_type == "unmyelinated":
+        cell = ha_ax.return_constructed_unmyelinated_axon(dt, tstop, num_splits,
+                                                          1,
+                                                          axon_diameter=axon_diam)
+    elif axon_type == "myelinated":
+        cell = ha_ax.return_constructed_myelinated_axon(dt, tstop, num_splits,
+                                                        1,
+                                                        axon_diam_scaling=axon_diam_scaling,
+                                                        my_length=my_length,
+                                                        axon_length=axon_length)
+    elif axon_type == "combo":
+        cell = ha_ax.return_constructed_combo_axon(dt, tstop, num_splits,
+                                                   1,
+                                                   axon_diameter=axon_diam)
+    elif axon_type == "unmyelinated_segment":
+        cell = ha_ax.return_constructed_unmyelinated_segment_axon(dt, tstop,
+                                                                  axon_diameter=axon_diam)
+    else:
+        raise RuntimeError("axon_type not recognized")
+
+    fig_folder = join(root_folder, "exp_data", "simulated", cell_name)
+    os.makedirs(fig_folder, exist_ok=True)
+
+    syn, cell = insert_current_stimuli(cell, -0.04 )
+
+
+    cell.simulate(rec_vmem=True, rec_imem=True)
+
+    if axon_type == "unmyelinated":
+        # Unmyelinated:
+        t0 = np.argmin(np.abs(cell.tvec - 2.0))
+        t1 = np.argmin(np.abs(cell.tvec - 4.73))
+    elif axon_type == "myelinated":
+        # Myelinated:
+        # t0 = np.argmin(np.abs(cell.tvec - 0.15))
+        # t1 = np.argmin(np.abs(cell.tvec - 2.853))
+        t0 = np.argmin(np.abs(cell.tvec - 0.15))
+        t1 = np.argmin(np.abs(cell.tvec - 2.853))
+    elif axon_type == "combo":
+        # Myelinated:
+        t0 = np.argmin(np.abs(cell.tvec - 0.15))
+        t1 = np.argmin(np.abs(cell.tvec - 2.853))
+    elif axon_type == "unmyelinated_segment":
+        # Myelinated:
+        # t0 = np.argmin(np.abs(cell.tvec - 0.15))
+        # t1 = np.argmin(np.abs(cell.tvec - 2.853))
+        t0 = np.argmin(np.abs(cell.tvec - 1.))
+        t1 = np.argmin(np.abs(cell.tvec - 2.))
+    else:
+        raise RuntimeError("axon_type not recognized.")
+
+    # cell.dt *= 4
+    cell.tvec = cell.tvec[t0:t1] - cell.tvec[t0]
+    cell.imem = cell.imem[:, t0:t1]
+    cell.vmem = cell.vmem[:, t0:t1]
+    cell.somav = cell.vmem[0, t0:t1]
+
+    # cell.tvec = cell.tvec[::4]
+    # cell.imem = cell.imem[:, ::4]
+    # cell.vmem = cell.vmem[:, ::4]
+    # cell.somav = cell.vmem[0, ::4]
+
+
+    fig_name = f"sim_{cell_name}_{axon_diam_scaling}_{axon_length}_{my_length}"
+    print(fig_name)
+    plot_schematic_axon(cell, fig_name, fig_folder, axon_diam_scaling,
+                        my_length, axon_length)
+
+    del cell, syn
+
+
+    # plot_spikes(cell, cell_name)
+
+def plot_schematic_axon(cell, fig_name, fig_folder, axon_diam_scaling,
+                        my_length, axon_length):
+    #data_folder = join(root_folder, "exp_data", "NPUltraWaveforms")
+
+    # num_elecs = 5
+    axon_length = np.max(cell.z) - np.min(cell.z)
+
+    num_elecs_ = 7
+
+    elecs_z = np.r_[#np.min(cell.z) - 10,
+                    np.linspace(np.min(cell.z), np.max(cell.z), num_elecs_),
+                    #np.max(cell.z) + 10,
+                    ]
+    elecs_x = np.r_[#0,
+                    np.zeros(num_elecs_) + 1,
+                    #0,
+                    ]
+    elecs_y = np.zeros(len(elecs_z))
+
+    dz = elecs_z[2] - elecs_z[1]
+
+    num_elecs = len(elecs_x)
+
+    ylim = np.array([np.min(elecs_z) - axon_length / 100,
+                     np.max(elecs_z) + axon_length / 100])
+    xlim = [-axon_length / 50, axon_length / 50]
+
+    elec_params = {
+        'sigma': sigma,  # Saline bath conductivity
+        'x': elecs_x,  # electrode requires 1d vector of positions
+        'y': elecs_y,
+        'z': elecs_z,
+        'r': 2.5,
+        'n': 20,
+        'N': [0, 1, 0],
+        "method": "root_as_point",
+    }
+
+    electrode = LFPy.RecExtElectrode(cell, **elec_params)
+    eaps = electrode.get_transformation_matrix() @ cell.imem * 1e3
+    eaps -= eaps[:, 0, None]
+
+    elec_clrs = lambda idx: plt.cm.viridis(idx / (num_elecs - 1))
+
+    fig = plt.figure(figsize=[10, 6])
+    caption = f"Axon diameter scaling: {axon_diam_scaling:0.1f}\n"
+    caption += f"Axon length: {int(axon_length):d} µm\n"
+    caption += f"Myelinated segment length: {int(my_length):d} µm"
+
+    fig.text(0.78, 0.92, caption, fontsize=8)
+
+    ax1 = fig.add_axes([0.01, 0.15, 0.1, 0.78], aspect=1, ylim=ylim,
+                       xlim=xlim, frameon=False, xticks=[], yticks=[])
+
+    ax_all = fig.add_axes([0.5, 0.02, 0.49, 0.96], frameon=False, xticks=[], yticks=[])
+
+    plot_superimposed_sec_type(cell, ax1, make_legend=True)
+    for elec_idx in range(num_elecs):
+        ax1.plot(elecs_x[elec_idx], elecs_z[elec_idx], 'D',
+                 c=elec_clrs(elec_idx), clip_on=False)
+        ax_all.plot(cell.tvec, eaps[elec_idx], c=elec_clrs(elec_idx))
+
+        y_ = eaps[elec_idx] / np.max(np.abs(eaps)) * dz * 0.7 + elecs_z[elec_idx]
+        x_ = cell.tvec / cell.tvec[-1] * axon_length / 1.3 + axon_length / 20
+        ax1.plot(x_, y_, c=elec_clrs(elec_idx), clip_on=False)
+
+    ax1.plot(cell.x[0].mean(), cell.z[0].mean(), 'y*', ms=10)
+
+    ax1.plot([xlim[0], xlim[0]], [0, int(axon_length / 10)],
+             lw=1, c='k', clip_on=False)
+    ax1.text(xlim[0] * 1.05, int(axon_length / 20),
+             f"{int(axon_length / 10)}\nµm", va='center', ha='right')
+
+    ax_all.plot([cell.tvec[-1], cell.tvec[-1] - 1],
+                [np.min(eaps), np.min(eaps)], lw=1, c='k', clip_on=False)
+    ax_all.text(cell.tvec[-1] - 0.5, np.min(eaps) * 1.01, "1 ms",
+                va="top", ha='center')
+
+    ax_all.plot([cell.tvec[-1] * 1.02, cell.tvec[-1]*1.02],
+                [0, np.min(eaps)], lw=1, c='k', clip_on=False)
+    ax_all.text(cell.tvec[-1]*0.99, np.min(eaps) / 2, f"{-np.min(eaps):0.1f}\nµV",
+                va="center", ha='right')
+
+    fig.savefig(join(fig_folder, f"{fig_name}_closer.png"), dpi=150)
+
+    del electrode
+
 if __name__ == '__main__':
 
     # realistic_stimuli_hay()
@@ -2773,10 +2955,12 @@ if __name__ == '__main__':
     # run_chosen_allen_models()
     # control_sim_allen_cells()
     # recreate_allen_data_axon()
-    for trial_idx in range(100):
-        simulate_passing_axon("combo", trial_idx)
-        simulate_passing_axon("myelinated", trial_idx)
-        simulate_passing_axon("unmyelinated", trial_idx)
+    simulate_schematic_axon("myelinated")
+    # for trial_idx in range(10):
+        # simulate_passing_axon("combo", trial_idx)
+        # simulate_passing_axon("myelinated", trial_idx)
+        # simulate_passing_axon("unmyelinated", trial_idx)
+        # simulate_passing_axon("unmyelinated_segment", trial_idx)
     #simulate_passing_axon(1)
     # inspect_cells()
     # analyze_eap_amplitudes()
