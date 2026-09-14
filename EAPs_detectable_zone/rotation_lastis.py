@@ -21,7 +21,7 @@ def find_major_axes(cell):
     pca.fit(points[:3].T)
     return pca.components_
 
-def alignCellToAxes(cell, y_axis, x_axis=None):
+def align_cell_to_axes(cell):
     """
     Based on code from: https://github.com/lastis/LFPy_util/
     Rotates the cell such that **y_axis** is paralell to the global y-axis and
@@ -29,17 +29,18 @@ def alignCellToAxes(cell, y_axis, x_axis=None):
     **y_axis** and **x_axis** should be orthogonal, but need not be.
     :param `~LFPy.Cell` cell:
         Initialized Cell object to rotate.
-    :param `~numpy.ndarray` y_axis:
-        Vector to be aligned to the global y-axis.
-    :param `~numpy.ndarray` x_axis:
-        Vector to be aligned to the global x-axis.
-    Example:
-        .. code-block:: python
-            # Find the principal component axes and rotate cell.
-            axes = LFPy_util.data_extraction.findMajorAxes()
-            LFPy_util.rotation.alignCellToAxes(cell,axes[0],axes[1])
+
     """
-    y_axis = np.asarray(y_axis)
+
+    from sklearn.decomposition import PCA
+    points = np.array([cell.x.mean(axis=1),
+                       cell.y.mean(axis=1),
+                       cell.z.mean(axis=1)])
+    pca = PCA(n_components=3)
+    pca.fit(points[:3].T)
+    axes = pca.components_
+
+    y_axis = np.asarray(axes[2])
     y_axis = y_axis / np.linalg.norm(y_axis)
 
     dx = y_axis[0]
@@ -50,6 +51,7 @@ def alignCellToAxes(cell, y_axis, x_axis=None):
     z_angle = np.arctan2(dx, np.sqrt(dy * dy + dz * dz))
 
     cell.set_rotation(x_angle, None, z_angle)
+    x_axis = axes[1]
     if x_axis is None:
         return
 

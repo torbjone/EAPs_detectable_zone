@@ -25,7 +25,7 @@ z = np.load(join(exp_data_folder, "channels.ycoords.npy"))[:, 0]
 spike_times = np.load(join(exp_data_folder, "spikes.times.npy"))
 spike_clusters = np.load(join(exp_data_folder, "spikes.clusters.npy"))
 waveforms = np.load(join(exp_data_folder, "clusters.waveforms.npy"))
-meta_data = pandas.read_csv(join(exp_data_folder, "clusters.acronym.tsv"), sep='\t')
+meta_data = pandas.read_csv(join(exp_data_folder, "clusters.acronym.csv"), sep='\t')
 depth_sort = np.argsort(z)
 
 # print(waveforms.shape)
