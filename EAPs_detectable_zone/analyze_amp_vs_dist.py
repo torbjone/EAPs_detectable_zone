@@ -18,9 +18,9 @@ os.makedirs(fig_folder, exist_ok=True)
 x = np.load(join(exp_data_folder, "channels.xcoords.npy"))[:, 0]
 z = np.load(join(exp_data_folder, "channels.ycoords.npy"))[:, 0]
 
-ws = np.load(join(sim_data_folder, f"waveforms_sim_{data_set_name}_l23_elec_d_20um.npy"))
-ct = np.load(join(sim_data_folder, f"waveforms_sim_{data_set_name}_celltype_list_l23_elec_d_20um.npy"))
-soma_locs = np.load(join(sim_data_folder, f"waveforms_sim_{data_set_name}_soma_location_l23_elec_d_20um.npy"))
+ws = np.load(join(sim_data_folder, f"waveforms_sim_{data_set_name}_l23_elec_r_7um_tiny_axon.npy"))
+ct = np.load(join(sim_data_folder, f"waveforms_sim_{data_set_name}_celltype_list_l23_elec_r_7um_tiny_axon.npy"))
+soma_locs = np.load(join(sim_data_folder, f"waveforms_sim_{data_set_name}_soma_location_l23_elec_r_7um_tiny_axon.npy"))
 
 num_spikes = ws.shape[0]
 num_tsteps = ws.shape[1]
@@ -79,4 +79,4 @@ ax1.scatter(x, z, s=4, c='k')
 # ax2.scatter(x, np.zeros(x.shape), s=4, c='r')
 
 simplify_axes(fig.axes)
-fig.savefig(join(sim_data_folder, "allen_soma_locations_l23_elec_d_20um.png"))
+fig.savefig(join(sim_data_folder, "allen_soma_locations_l23_elec_r_7um_tiny_axon.png"))

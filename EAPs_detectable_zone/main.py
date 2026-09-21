@@ -552,7 +552,7 @@ def return_allen_cell_model(model_id, dt, tstop, cutoff, make_passive=False):
         'tstop': tstop + cutoff,
         'pt3d': True,
         'extracellular': True,   # needed for imem
-        'custom_code': [join(allen_folder, 'remove_axon.hoc')],
+        'custom_code': [join(allen_folder, 'remove_axon_fully.hoc')],
     }
     cell = LFPy.Cell(**cell_parameters)
     cell.metadata = metadata
@@ -622,6 +622,7 @@ def return_spike_time_idxs(vm):
 
     return np.array(crossings)
 
+
 def return_spike_time_idxs_imem(im):
     """Returns threshold crossings for membrane
     potential of single compartment"""
@@ -639,7 +640,6 @@ def return_spike_time_idxs_imem(im):
             crossings.append(t_idx)
 
     return np.array(crossings)
-
 
 
 def extract_spike(cell):
@@ -1649,7 +1649,7 @@ def recreate_allen_data():
         'x': elecs_x,  # electrode requires 1d vector of positions
         'y': np.zeros(len(elecs_x)),
         'z': elecs_z,
-        'r': 10,
+        'r': 7.24,
         'n': 100,
         'N': [0, 1, 0],
         "method": "root_as_point",
@@ -1678,7 +1678,7 @@ def recreate_allen_data():
             continue
 
         try:
-            cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt2_%s.npy" % model_id))[:, ::4]
+            cell.imem = np.load(os.path.join(imem_eap_folder, "imem_filt2_%s_tiny_axon.npy" % model_id))[:, ::4]
         except FileNotFoundError:
             print("Did not find: ", model_id)
             continue
@@ -1699,7 +1699,7 @@ def recreate_allen_data():
                               z=np.random.uniform(0, 2 * np.pi))
 
             cell.set_pos(x=np.random.uniform(-axd.dx * 3, np.max(axd.x) + axd.dx * 3),
-                         y=np.random.uniform(0, 60),
+                         y=np.random.uniform(cell.d[0]/2, 50),
                          z=np.random.uniform(-axd.dz, np.max(axd.z) + axd.dz))
 
             electrode = LFPy.RecExtElectrode(cell, **elec_params)
@@ -1709,20 +1709,20 @@ def recreate_allen_data():
             t_ = cell.tvec
             # if np.max(np.abs(eap_)) > 30:
             print(f"Saving spike {trial_idx} / {num_trials} ...")
-            fig_name = "sim_allen_mouse_%s_%d_prefilt_downsampled_%d_elec_d_20um" % (model_id, trial_idx, counter)
+            fig_name = "sim_allen_mouse_%s_%d_prefilt_downsampled_%d_elec_r_7um_tiny_axon" % (model_id, trial_idx, counter)
             axd.plot_NPUltraWaveform(eap_, t_, fig_name,
                                      fig_folder, cell)
             waveform_collection.append(eap_)
             cell_type_list.append(cell_name)
-            soma_location.append([cell.x[0].mean(), cell.y[0].mean(), cell.z[0].mean()])
+            soma_location.append([cell.x[0].mean(), cell.y[0].mean(), cell.z[0].mean(), cell.d[0]])
             counter += 1
 
         #     os._exit(0)
         # else:
         #     os.waitpid(pid, 0)
-    np.save(join(fig_folder, "..", "waveforms_sim_allen_l23_elec_d_20um.npy"), waveform_collection)
-    np.save(join(fig_folder, "..", "waveforms_sim_allen_soma_location_l23_elec_d_20um.npy"), soma_location)
-    np.save(join(fig_folder, "..", "waveforms_sim_allen_celltype_list_l23_elec_d_20um.npy"), cell_type_list)
+    np.save(join(fig_folder, "..", "waveforms_sim_allen_l23_elec_r_7um_tiny_axon.npy"), waveform_collection)
+    np.save(join(fig_folder, "..", "waveforms_sim_allen_soma_location_l23_elec_r_7um_tiny_axon.npy"), soma_location)
+    np.save(join(fig_folder, "..", "waveforms_sim_allen_celltype_list_l23_elec_r_7um_tiny_axon.npy"), cell_type_list)
 
 
 def recreate_allen_data_hay():
@@ -2250,6 +2250,7 @@ def realistic_stimuli_hay():
     plot_spikes(cell, cell_name)
     plot_single_cell_detectable_volume(cell, "hay", join("..", "model_scan"), fig_suptitle="Hay L5 PC")
 
+
 def realistic_stimuli_hallermann():
 
     cell_name = "hallermann"
@@ -2339,7 +2340,10 @@ def realistic_stimuli_allen():
     cell_names = [f[-9:] for f in os.listdir(allen_folder) if f.startswith("neuronal_model") and
                   os.path.isdir(join(allen_folder, f))]
 
-    overwrite_existing = True
+
+    cell_names = [497233110]
+
+    overwrite_existing = False
 
     print(cell_names)
     # sys.exit()
@@ -2347,7 +2351,7 @@ def realistic_stimuli_allen():
         raise RuntimeError("No cell models in folder!")
     for cell_name in cell_names:
         if os.path.isfile(os.path.join(imem_eap_folder,
-                                       "imem_ufilt_%s.npy" % cell_name)):
+                                       "imem_ufilt_%s_tiny_axon.npy" % cell_name)):
             if overwrite_existing:
                 sim_success = False
             else:
@@ -2383,7 +2387,7 @@ def realistic_stimuli_allen():
                 os.waitpid(pid, 0)
                 # plt.pause(0.1)
                 if os.path.isfile(os.path.join(imem_eap_folder,
-                                               "imem_ufilt_%s.npy" % cell_name)):
+                                               "imem_ufilt_%s_tiny_axon.npy" % cell_name)):
                     sim_success = True
                 else:
                     weight_scale_ *= 1.5
@@ -2602,11 +2606,18 @@ def plot_spikes(cell, cell_name):
     v_e_filt = elephant.signal_processing.butter(v_e_ufilt, **filt_dict_high_pass)
 
     spike_time_idxs = return_spike_time_idxs(cell.somav)
+
     # print(cell.tvec[spike_time_idxs])
     window_len = 2.7
     window_t0 = -int(1.27 / cell.dt)
     window_t1 = int(window_len / cell.dt + 1) + window_t0
     # print(window_t0 * cell.dt, window_t1 * cell.dt)
+
+    if len(spike_time_idxs) > 0:
+        try:
+            last_spike_time_end = cell.tvec[spike_time_idxs[-1] + window_t1]
+        except IndexError:
+            spike_time_idxs = spike_time_idxs[:-1]
 
     if len(spike_time_idxs) == 0:
         print(cell_name, " not spiking!")
@@ -2614,11 +2625,12 @@ def plot_spikes(cell, cell_name):
         spike_windows = np.array([[0, len(cell.tvec) - 1]])
         #return None
     else:
+        print(cell_name, " is spiking!")
         is_spiking = True
         spike_windows = np.array([spike_time_idxs + window_t0,
                                   spike_time_idxs + window_t1]).T
 
-    # print(spike_windows)
+    print(spike_windows)
     eaps_filt = []
     eaps_ufilt = []
     imems_filt = []
@@ -2632,13 +2644,15 @@ def plot_spikes(cell, cell_name):
             imems_filt2.append(imem_filt2[:, s_wind[0]:s_wind[1]])
             imems_ufilt.append(cell.imem[:, s_wind[0]:s_wind[1]])
 
+    print(imem_filt.shape)
+
     imem_filt_mean = np.mean(imems_filt, axis=0)
     imem_filt2_mean = np.mean(imems_filt2, axis=0)
     imem_ufilt_mean = np.mean(imems_ufilt, axis=0)
     if is_spiking:
-        np.save(os.path.join(imem_eap_folder, "imem_ufilt_%s.npy" % cell_name), imem_ufilt_mean)
-        np.save(os.path.join(imem_eap_folder, "imem_filt_%s.npy" % cell_name), imem_filt_mean)
-        np.save(os.path.join(imem_eap_folder, "imem_filt2_%s.npy" % cell_name), imem_filt2_mean)
+        np.save(os.path.join(imem_eap_folder, "imem_ufilt_%s_tiny_axon.npy" % cell_name), imem_ufilt_mean)
+        np.save(os.path.join(imem_eap_folder, "imem_filt_%s_tiny_axon.npy" % cell_name), imem_filt_mean)
+        np.save(os.path.join(imem_eap_folder, "imem_filt2_%s_tiny_axon.npy" % cell_name), imem_filt2_mean)
 
     v_e_prefilt = electrode.get_transformation_matrix() @ imem_filt_mean * 1e3
     v_e_prefilt2 = electrode.get_transformation_matrix() @ imem_filt2_mean * 1e3
@@ -2679,7 +2693,7 @@ def plot_spikes(cell, cell_name):
     ax_eap.legend([l1, l2], ["hp-filtered", "unfiltered"], frameon=False)
     fig_folder = os.path.join("..", "sim_control_figs")
     os.makedirs(fig_folder, exist_ok=True)
-    plt.savefig(join(fig_folder, "sim_EAP_%s_one_pole_%s.png" % (cell_name, is_spiking)))
+    plt.savefig(join(fig_folder, "sim_EAP_%s_one_pole_%s_tiny_axon.png" % (cell_name, is_spiking)))
     # plt.show()
 
 
@@ -2771,6 +2785,7 @@ def simulate_schematic_axon(axon_type):
 
 
     # plot_spikes(cell, cell_name)
+
 
 def plot_schematic_axon(cell, fig_name, fig_folder, axon_diam_scaling,
                         my_length, axon_length):
