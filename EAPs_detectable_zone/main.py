@@ -1670,8 +1670,9 @@ def recreate_allen_data():
         cell_type = cell.metadata["specimen"]["specimen_tags"][1]["name"].split("-")[1]
         cell_region = cell.metadata["specimen"]["structure"]["name"]
         cell_layer = cell.metadata["specimen"]["structure"]["name"].split(",")[1]
+        cre_line = cell.metadata["specimen"]["name"].split("-")[0]
 
-        cell_name = model_type + cell_type + ' ' + cell_region
+        cell_name = model_type + ', ' + cell_type + ', ' + cell_region + ', ' + cre_line
 
         if not "layer 2/3" in cell_region:
             print("Skipping ", cell_name)
@@ -1720,6 +1721,7 @@ def recreate_allen_data():
         #     os._exit(0)
         # else:
         #     os.waitpid(pid, 0)
+
     np.save(join(fig_folder, "..", "waveforms_sim_allen_l23_elec_r_7um_tiny_axon.npy"), waveform_collection)
     np.save(join(fig_folder, "..", "waveforms_sim_allen_soma_location_l23_elec_r_7um_tiny_axon.npy"), soma_location)
     np.save(join(fig_folder, "..", "waveforms_sim_allen_celltype_list_l23_elec_r_7um_tiny_axon.npy"), cell_type_list)
